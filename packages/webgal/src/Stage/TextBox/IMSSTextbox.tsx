@@ -1,12 +1,44 @@
 import styles from './textbox.module.scss';
-import { useEffect } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import { WebGAL } from '@/Core/WebGAL';
 import { ITextboxProps } from './types';
 import useApplyStyle from '@/hooks/useApplyStyle';
 import { css } from '@emotion/css';
 import { textSize } from '@/store/userDataInterface';
-import { useSelector } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
+import { setStage } from '@/store/stageReducer';
+import select07_se from '@/assets/se/select07.mp3';
+
+const toNumber = (value: unknown, fallback: number) => {
+  const num = typeof value === 'number' ? value : Number(value);
+  return Number.isFinite(num) ? num : fallback;
+};
+
+const resolveTypingSoundSe = (value: unknown) => {
+  if (typeof value !== 'string') {
+    return select07_se;
+  }
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return select07_se;
+  }
+  if (/^https?:\/\//.test(trimmed) || trimmed.startsWith('/') || trimmed.startsWith('./')) {
+    return trimmed;
+  }
+  return `./game/se/${trimmed}`;
+};
+
+const toBool = (value: unknown, fallback: boolean) => {
+  if (typeof value === 'boolean') return value;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (normalized === 'true' || normalized === '1' || normalized === 'yes') return true;
+    if (normalized === 'false' || normalized === '0' || normalized === 'no') return false;
+  }
+  return fallback;
+};
 
 export default function IMSSTextbox(props: ITextboxProps) {
   const {
@@ -29,6 +61,18 @@ export default function IMSSTextbox(props: ITextboxProps) {
   } = props;
 
   const applyStyle = useApplyStyle('Stage/TextBox/textbox.scss');
+  const dispatch = useDispatch();
+  const userDataState = useSelector((state: RootState) => state.userData);
+  const typingSoundTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingSoundActiveRef = useRef(false);
+
+  const stopTypingSound = useCallback(() => {
+    typingSoundActiveRef.current = false;
+    if (typingSoundTimerRef.current) {
+      clearTimeout(typingSoundTimerRef.current);
+      typingSoundTimerRef.current = null;
+    }
+  }, []);
 
   useEffect(() => {
     function settleText() {
@@ -37,13 +81,14 @@ export default function IMSSTextbox(props: ITextboxProps) {
       textArray.forEach((e) => {
         e.className = applyStyle('TextBox_textElement_Settled', styles.TextBox_textElement_Settled);
       });
+      stopTypingSound();
     }
 
     WebGAL.events.textSettle.on(settleText);
     return () => {
       WebGAL.events.textSettle.off(settleText);
     };
-  }, []);
+  }, [applyStyle, stopTypingSound]);
   let allTextIndex = 0;
   const nameElementList = showName.map((line, index) => {
     const textline = line.map((en, index) => {
@@ -187,7 +232,69 @@ export default function IMSSTextbox(props: ITextboxProps) {
     );
   });
 
-  const userDataState = useSelector((state: RootState) => state.userData);
+  const textUnitCount = textArray.reduce((sum, line) => sum + line.length, 0);
+  const hasTextContent = textArray.some((line) =>
+    line.some((node) => (typeof node.reactNode === 'string' ? node.reactNode.trim() !== '' : true)),
+  );
+  const typingSoundIntervalChars = Math.max(
+    0.1,
+    toNumber(userDataState.globalGameVar.TypingSoundInterval, 2),
+  );
+  const typingSoundPunctuationPauseMs = Math.max(
+    0,
+    Math.floor(toNumber(userDataState.globalGameVar.TypingSoundPunctuationPause, 100)),
+  );
+  const typingSoundEnabled = toBool(userDataState.globalGameVar.TypingSoundEnabled, false);
+  const typingSoundSe = resolveTypingSoundSe(userDataState.globalGameVar.TypingSoundSe);
+
+  useEffect(() => {
+    stopTypingSound();
+    if (!isText || !hasTextContent || !typingSoundEnabled) return;
+    const prevLength = currentConcatDialogPrev.length;
+    const remaining = textUnitCount - prevLength;
+    if (remaining <= 0) return;
+    const textUnits = textArray.flat();
+    typingSoundActiveRef.current = true;
+    let index = 0;
+    let nextSoundIndex = 0;
+    const delay = Math.max(1, Math.floor(textDelay));
+    const punctuationRegex = /[，。！？；：、,.!?;:…]/;
+    const tick = () => {
+      if (!typingSoundActiveRef.current) return;
+      if (index >= remaining) {
+        stopTypingSound();
+        return;
+      }
+      const unit = textUnits[prevLength + index];
+      const shouldPause =
+        typeof unit?.reactNode === 'string' ? punctuationRegex.test(unit.reactNode) : false;
+      if (index >= nextSoundIndex) {
+        dispatch(setStage({ key: 'uiSe', value: typingSoundSe }));
+        nextSoundIndex += typingSoundIntervalChars;
+      }
+      index += 1;
+      typingSoundTimerRef.current = setTimeout(
+        tick,
+        delay + (shouldPause ? typingSoundPunctuationPauseMs : 0),
+      );
+    };
+    tick();
+    return stopTypingSound;
+  }, [
+    currentDialogKey,
+    currentConcatDialogPrev,
+    textDelay,
+    textUnitCount,
+    isText,
+    hasTextContent,
+    typingSoundIntervalChars,
+    typingSoundPunctuationPauseMs,
+    typingSoundEnabled,
+    typingSoundSe,
+    dispatch,
+    stopTypingSound,
+  ]);
+
   const lineHeightValue = textSizeState === textSize.medium ? 2.2 : 2;
   const textLineHeight = userDataState.globalGameVar.LineHeight;
   const finalTextLineHeight = textLineHeight ? Number(textLineHeight) : lineHeightValue;

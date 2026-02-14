@@ -1,0 +1,59 @@
+[
+    {
+        "alpha": 1,
+        "position": {
+            "x": 0,
+            "y": 0
+        },
+        "duration": 0
+    },
+    {
+        "position": {
+            "x": -6,
+            "y": 3
+        },
+        "duration": 30
+    },
+    {
+        "position": {
+            "x": 6,
+            "y": -6
+        },
+        "duration": 30
+    },
+    {
+        "position": {
+            "x": -3,
+            "y": -9
+        },
+        "duration": 30
+    },
+    {
+        "position": {
+            "x": 9,
+            "y": 0
+        },
+        "duration": 30
+    },
+    {
+        "position": {
+            "x": -6,
+            "y": 6
+        },
+        "duration": 30
+    },
+    {
+        "position": {
+            "x": 3,
+            "y": -3
+        },
+        "duration": 30
+    },
+    {
+        "position": {
+            "x": 0,
+            "y": 0
+        },
+        "duration": 30
+    }
+]

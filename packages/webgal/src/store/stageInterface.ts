@@ -77,6 +77,9 @@ export interface IStageAnimationSetting {
   exitAnimationName?: string;
   enterDuration?: number;
   exitDuration?: number;
+  enterKeepOffset?: boolean;
+  exitKeepOffset?: boolean;
+  baseTransform?: ITransform;
 }
 
 export type StageAnimationSettingUpdatableKey = Exclude<keyof IStageAnimationSetting, 'target'>;
@@ -189,6 +192,13 @@ export interface IFigureMetadata {
 
 type figureMetaData = Record<string, IFigureMetadata>;
 
+export interface IDicePerformState {
+  visible: boolean;
+  content: string;
+  mode?: string;
+  revision: number;
+}
+
 /**
  * @interface IStageState 游戏舞台数据接口
  */
@@ -236,6 +246,7 @@ export interface IStageState {
   isDisableTextbox: boolean;
   replacedUIlable: Record<string, string>;
   figureMetaData: figureMetaData;
+  dicePerform: IDicePerformState;
 }
 
 /**

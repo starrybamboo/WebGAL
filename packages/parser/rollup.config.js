@@ -16,6 +16,7 @@ export default [
       },
     plugins: [
       resolve(), commonjs(), typescript({
+        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
@@ -36,6 +37,7 @@ export default [
     ],
     plugins: [
       resolve(), commonjs(), typescript({
+        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
@@ -57,6 +59,7 @@ export default [
     ],
     plugins: [
       resolve(), commonjs(), typescript({
+        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {

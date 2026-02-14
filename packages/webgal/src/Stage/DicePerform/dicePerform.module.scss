@@ -1,0 +1,379 @@
+.DicePerform_stage {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  color: #f6f2ea;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.DicePerform_card {
+  width: 100%;
+  padding: 24px 28px;
+  border-radius: 18px;
+  background: rgba(6, 10, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+  animation: DicePerform_fadeIn 160ms ease-out;
+  overflow: hidden;
+}
+
+.DicePerform_optionsCard {
+  position: absolute;
+  top: 2%;
+  right: 2%;
+  width: min(86vw, 1400px);
+  max-height: 70%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.DicePerform_dialogCard {
+  position: absolute;
+  left: 275px;
+  right: 25px;
+  bottom: 20px;
+  min-height: 330px;
+  max-height: 330px;
+  padding: 1em 50px 70px 200px;
+  border-radius: 165px 20px 20px 165px;
+  background: rgba(8, 12, 18, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.DicePerform_blockHeader {
+  padding: 6px 4px;
+}
+
+.DicePerform_blockOptions {
+  width: 100%;
+  padding: 28px 30px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(18, 22, 30, 0.58);
+  color: #f6f2ea;
+  box-sizing: border-box;
+}
+
+.DicePerform_line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1em;
+  line-height: 1.75;
+  font-size: clamp(24px, 2.4vw, 34px);
+  margin-bottom: 0.32em;
+}
+
+.DicePerform_dialogCard .DicePerform_line {
+  font-size: clamp(24px, 2.4vw, 34px);
+  line-height: 1.7;
+}
+
+.DicePerform_blockOptions .DicePerform_line {
+  font-size: clamp(28px, 2.9vw, 38px);
+  line-height: 1.8;
+}
+
+.DicePerform_option {
+  padding-left: 0.8em;
+}
+
+.DicePerform_piece {
+  white-space: pre-wrap;
+}
+
+.DicePerform_modeTrpg {
+  color: #eef1f5;
+  background: rgba(255, 255, 255, 0.02);
+  backdrop-filter: blur(9px) saturate(126%);
+}
+
+.DicePerform_trpgOverlay {
+  position: absolute;
+  top: 16%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(90vw, 760px);
+  padding: clamp(18px, 2.8vw, 30px) clamp(18px, 3.2vw, 36px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  border-radius: 22px;
+  background: rgba(245, 248, 252, 0.08);
+  border: 1px solid rgba(240, 245, 255, 0.32);
+  box-shadow:
+    0 14px 36px rgba(0, 0, 0, 0.3),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(18px) saturate(145%);
+}
+
+.DicePerform_trpgOverlayRolling {
+  animation: DicePerform_trpgOverlayFloat 320ms ease-in-out infinite;
+}
+
+.DicePerform_trpgOverlayImpact {
+  animation: DicePerform_trpgOverlayImpact 220ms ease-out;
+}
+
+.DicePerform_trpgTitle {
+  font-size: clamp(30px, 3vw, 44px);
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: rgba(250, 252, 255, 0.98);
+  text-shadow:
+    0 4px 16px rgba(0, 0, 0, 0.48),
+    0 0 10px rgba(255, 255, 255, 0.12);
+}
+
+.DicePerform_trpgDiceRow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+.DicePerform_trpgDie {
+  position: relative;
+  width: clamp(90px, 9.5vw, 140px);
+  height: clamp(90px, 9.5vw, 140px);
+  clip-path: polygon(50% 1%, 83% 14%, 98% 50%, 83% 86%, 50% 99%, 17% 86%, 2% 50%, 17% 14%);
+  border: 1px solid rgba(230, 240, 255, 0.65);
+  background:
+    linear-gradient(150deg, rgba(238, 245, 255, 0.22) 0%, rgba(212, 225, 242, 0.13) 52%, rgba(30, 40, 54, 0.14) 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.14),
+    0 8px 22px rgba(0, 0, 0, 0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px) saturate(130%);
+}
+
+.DicePerform_trpgDieSolo {
+  width: clamp(136px, 14vw, 210px);
+  height: clamp(136px, 14vw, 210px);
+}
+
+.DicePerform_trpgDieInner {
+  position: absolute;
+  inset: 16%;
+  clip-path: polygon(50% 0, 84% 14%, 100% 50%, 84% 86%, 50% 100%, 16% 86%, 0 50%, 16% 14%);
+  border: 1px solid rgba(230, 240, 255, 0.42);
+}
+
+.DicePerform_trpgDieText {
+  font-size: clamp(44px, 5.2vw, 82px);
+  font-weight: 700;
+  color: rgba(246, 250, 255, 0.95);
+  text-shadow:
+    0 0 8px rgba(255, 255, 255, 0.35),
+    0 0 16px rgba(0, 0, 0, 0.62);
+}
+
+.DicePerform_trpgDieTextRolling {
+  animation: DicePerform_trpgNumberFlicker 110ms linear infinite;
+}
+
+.DicePerform_trpgDieRolling {
+  animation: DicePerform_trpgDieFloat 220ms ease-in-out infinite;
+}
+
+.DicePerform_trpgDieLocked {
+  animation: DicePerform_trpgDieLock 260ms ease-out;
+}
+
+.DicePerform_trpgDieImpact {
+  animation: DicePerform_trpgDieImpact 220ms ease-out;
+}
+
+.DicePerform_trpgResult {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  color: #f5f7fb;
+  font-size: clamp(44px, 4.4vw, 66px);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(245, 250, 255, 0.28);
+  text-shadow:
+    0 3px 12px rgba(0, 0, 0, 0.48),
+    0 0 12px rgba(255, 255, 255, 0.16);
+}
+
+.DicePerform_trpgResultPending {
+  opacity: 0.62;
+  filter: blur(0.6px);
+}
+
+.DicePerform_trpgResultReady {
+  opacity: 1;
+  filter: blur(0);
+  animation: DicePerform_trpgResultReveal 260ms ease-out;
+}
+
+.DicePerform_trpgResultValue {
+  line-height: 1;
+}
+
+.DicePerform_trpgResultStatus {
+  font-size: clamp(16px, 1.6vw, 24px);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  opacity: 0.88;
+}
+
+.DicePerform_trpgResultStatusPending {
+  color: rgba(236, 241, 247, 0.82);
+  text-shadow: 0 0 8px rgba(255, 255, 255, 0.18);
+}
+
+.DicePerform_trpgResultStatusSuccess {
+  color: #6fe2a7;
+  text-shadow: 0 0 10px rgba(111, 226, 167, 0.42);
+}
+
+.DicePerform_trpgResultStatusHardSuccess {
+  color: #5ec8ff;
+  text-shadow: 0 0 10px rgba(94, 200, 255, 0.45);
+}
+
+.DicePerform_trpgResultStatusExtremeSuccess {
+  color: #72f0ff;
+  text-shadow: 0 0 12px rgba(114, 240, 255, 0.52);
+}
+
+.DicePerform_trpgResultStatusGreatSuccess {
+  color: #ffd76b;
+  text-shadow: 0 0 12px rgba(255, 215, 107, 0.58);
+}
+
+.DicePerform_trpgResultStatusFailure {
+  color: #ff9a9a;
+  text-shadow: 0 0 10px rgba(255, 154, 154, 0.4);
+}
+
+.DicePerform_trpgResultStatusFumble {
+  color: #ff6262;
+  text-shadow: 0 0 14px rgba(255, 98, 98, 0.65);
+}
+
+@keyframes DicePerform_fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes DicePerform_trpgDieFloat {
+  0% {
+    transform: translateY(0) rotate(-2deg) scale(0.99);
+    filter: brightness(0.95);
+  }
+  50% {
+    transform: translateY(-4px) rotate(4deg) scale(1.04);
+    filter: brightness(1.15);
+  }
+  100% {
+    transform: translateY(0) rotate(-2deg) scale(0.99);
+    filter: brightness(0.95);
+  }
+}
+
+@keyframes DicePerform_trpgDieLock {
+  from {
+    transform: translateY(-3px) scale(1.12);
+    filter: brightness(1.2);
+  }
+  to {
+    transform: translateY(0) scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes DicePerform_trpgDieImpact {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  40% {
+    transform: scale(1.12);
+    filter: brightness(1.28);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes DicePerform_trpgNumberFlicker {
+  0% {
+    opacity: 0.72;
+    transform: translateY(-1px);
+  }
+  50% {
+    opacity: 1;
+    transform: translateY(1px);
+  }
+  100% {
+    opacity: 0.72;
+    transform: translateY(-1px);
+  }
+}
+
+@keyframes DicePerform_trpgResultReveal {
+  from {
+    opacity: 0.4;
+    transform: scale(0.94);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes DicePerform_trpgOverlayFloat {
+  0% {
+    transform: translateX(-50%) translateY(0);
+  }
+  50% {
+    transform: translateX(-50%) translateY(-2px);
+  }
+  100% {
+    transform: translateX(-50%) translateY(0);
+  }
+}
+
+@keyframes DicePerform_trpgOverlayImpact {
+  0% {
+    transform: translateX(-50%) scale(0.96);
+    filter: brightness(0.92);
+  }
+  60% {
+    transform: translateX(-50%) scale(1.04);
+    filter: brightness(1.15);
+  }
+  100% {
+    transform: translateX(-50%) scale(1);
+    filter: brightness(1);
+  }
+}

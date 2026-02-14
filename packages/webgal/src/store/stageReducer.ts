@@ -73,6 +73,12 @@ export const initState: IStageState = {
   isDisableTextbox: false,
   replacedUIlable: {},
   figureMetaData: {},
+  dicePerform: {
+    visible: false,
+    content: '',
+    mode: '',
+    revision: 0,
+  },
 };
 
 /**

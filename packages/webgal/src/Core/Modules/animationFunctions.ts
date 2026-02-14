@@ -3,7 +3,7 @@ import { logger } from '@/Core/util/logger';
 import { generateUniversalSoftOffAnimationObj } from '@/Core/controller/stage/pixi/animations/universalSoftOff';
 import { webgalStore } from '@/store/store';
 import cloneDeep from 'lodash/cloneDeep';
-import { baseTransform } from '@/store/stageInterface';
+import { baseTransform, ITransform } from '@/store/stageInterface';
 import { generateTimelineObj } from '@/Core/controller/stage/pixi/animations/timeline';
 import { WebGAL } from '@/Core/WebGAL';
 import PixiStage, { IAnimationObject } from '@/Core/controller/stage/pixi/PixiController';
@@ -15,20 +15,40 @@ import {
 } from '../constants';
 
 // eslint-disable-next-line max-params
-export function getAnimationObject(animationName: string, target: string, duration: number, writeDefault: boolean) {
+export function getAnimationObject(
+  animationName: string,
+  target: string,
+  duration: number,
+  writeDefault: boolean,
+  keepOffset = false,
+  baseTransformOverride?: ITransform,
+) {
   const effect = WebGAL.animationManager.getAnimations().find((ani) => ani.name === animationName);
   if (effect) {
+    const targetSetEffect = webgalStore.getState().stage.effects.find((e) => e.target === target);
+    const baseForRelative = !writeDefault && keepOffset
+      ? (baseTransformOverride ?? targetSetEffect?.transform ?? getCurrentTargetTransform(target) ?? baseTransform)
+      : null;
+    const baseForEffect = !writeDefault
+      ? (keepOffset && baseForRelative ? baseForRelative : (targetSetEffect?.transform ?? baseTransform))
+      : baseTransform;
+    if (keepOffset && baseForRelative) {
+      const sampleFrame = effect.effects.length > 0 ? applyRelativeFrame(effect.effects[0], baseForRelative) : null;
+      console.log('[animation] apply keepOffset', {
+        target,
+        animationName,
+        basePosition: baseForRelative.position,
+        baseScale: baseForRelative.scale,
+        sampleFrame,
+      });
+    }
     const mappedEffects = effect.effects.map((effect) => {
-      const targetSetEffect = webgalStore.getState().stage.effects.find((e) => e.target === target);
       let newEffect;
 
-      if (!writeDefault && targetSetEffect && targetSetEffect.transform) {
-        newEffect = cloneDeep({ ...targetSetEffect.transform, duration: 0, ease: '' });
-      } else {
-        newEffect = cloneDeep({ ...baseTransform, duration: 0, ease: '' });
-      }
+      newEffect = cloneDeep({ ...baseForEffect, duration: 0, ease: '' });
 
-      PixiStage.assignTransform(newEffect, effect);
+      const frame = baseForRelative ? applyRelativeFrame(effect, baseForRelative) : effect;
+      PixiStage.assignTransform(newEffect, frame);
       newEffect.duration = effect.duration;
       newEffect.ease = effect.ease;
       return newEffect;
@@ -37,6 +57,41 @@ export function getAnimationObject(animationName: string, target: string, durati
     return generateTimelineObj(mappedEffects, target, duration);
   }
   return null;
+}
+
+function applyRelativeFrame(frame: any, base: ITransform) {
+  const next = cloneDeep(frame ?? {});
+  if (next.position) {
+    next.position = {
+      ...next.position,
+      x: (next.position.x ?? 0) + base.position.x,
+      y: (next.position.y ?? 0) + base.position.y,
+    };
+  }
+  if (next.scale) {
+    next.scale = {
+      ...next.scale,
+      x: (next.scale.x ?? 1) * base.scale.x,
+      y: (next.scale.y ?? 1) * base.scale.y,
+    };
+  }
+  return next;
+}
+
+function getCurrentTargetTransform(target: string): ITransform | null {
+  const stageObj = WebGAL.gameplay.pixiStage?.getStageObjByKey(target);
+  const container = stageObj?.pixiContainer;
+  if (!container) {
+    return null;
+  }
+  const transform = cloneDeep(baseTransform);
+  transform.alpha = container.alpha ?? transform.alpha;
+  transform.position.x = container.x ?? transform.position.x;
+  transform.position.y = container.y ?? transform.position.y;
+  transform.scale.x = container.scale?.x ?? transform.scale.x;
+  transform.scale.y = container.scale?.y ?? transform.scale.y;
+  transform.rotation = container.rotation ?? transform.rotation;
+  return transform;
 }
 
 export function getAnimateDuration(animationName: string) {
@@ -72,15 +127,25 @@ export function getEnterExitAnimation(
     // 走默认动画
     let animation: IAnimationObject | null = generateUniversalSoftInAnimationObj(realTarget ?? target, duration);
 
-    const transformState = webgalStore.getState().stage.effects;
-    const targetEffect = transformState.find((effect) => effect.target === target);
-
+    const keepOffset = webgalStore
+      .getState()
+      .stage.animationSettings.find((setting) => setting.target === target)?.enterKeepOffset ?? false;
     const animationName = webgalStore
       .getState()
       .stage.animationSettings.find((setting) => setting.target === target)?.enterAnimationName;
-    if (animationName && !targetEffect) {
+    const baseTransformFromSetting = keepOffset
+      ? webgalStore.getState().stage.animationSettings.find((setting) => setting.target === target)?.baseTransform
+      : undefined;
+    if (animationName) {
       logger.debug('取代默认进入动画', target);
-      animation = getAnimationObject(animationName, realTarget ?? target, getAnimateDuration(animationName), false);
+      animation = getAnimationObject(
+        animationName,
+        realTarget ?? target,
+        getAnimateDuration(animationName),
+        false,
+        keepOffset,
+        keepOffset ? baseTransformFromSetting : undefined,
+      );
       duration = getAnimateDuration(animationName);
     }
     return { duration, animation };
@@ -95,12 +160,34 @@ export function getEnterExitAnimation(
         ?.exitDuration ?? duration;
     // 走默认动画
     let animation: IAnimationObject | null = generateUniversalSoftOffAnimationObj(realTarget ?? target, duration);
+    const keepOffset = webgalStore
+      .getState()
+      .stage.animationSettings.find((setting) => setting.target + '-off' === target)?.exitKeepOffset ?? false;
     const animationName = webgalStore
       .getState()
       .stage.animationSettings.find((setting) => setting.target + '-off' === target)?.exitAnimationName;
+    const baseTransformFromSetting = keepOffset
+      ? (() => {
+        const setting = webgalStore.getState().stage.animationSettings.find((item) => item.target + '-off' === target);
+        if (setting?.baseTransform) return setting.baseTransform;
+        if (target.endsWith('-off')) {
+          const originTarget = target.slice(0, -4);
+          return webgalStore.getState().stage.animationSettings.find((item) => item.target === originTarget)
+            ?.baseTransform;
+        }
+        return undefined;
+      })()
+      : undefined;
     if (animationName) {
       logger.debug('取代默认退出动画', target);
-      animation = getAnimationObject(animationName, realTarget ?? target, getAnimateDuration(animationName), false);
+      animation = getAnimationObject(
+        animationName,
+        realTarget ?? target,
+        getAnimateDuration(animationName),
+        false,
+        keepOffset,
+        keepOffset ? baseTransformFromSetting : undefined,
+      );
       duration = getAnimateDuration(animationName);
     }
     return { duration, animation };

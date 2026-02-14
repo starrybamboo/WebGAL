@@ -40,6 +40,7 @@ export enum commandType {
   applyStyle,
   wait,
   callSteam, // 调用Steam功能
+  dice,
 }
 
 /**

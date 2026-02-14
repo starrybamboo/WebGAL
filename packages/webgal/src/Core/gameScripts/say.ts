@@ -21,6 +21,19 @@ export const say = (sentence: ISentence): IPerform => {
   const stageState = webgalStore.getState().stage;
   const userDataState = webgalStore.getState().userData;
   const dispatch = webgalStore.dispatch;
+  if (stageState.dicePerform?.visible) {
+    dispatch(
+      setStage({
+        key: 'dicePerform',
+        value: {
+          ...stageState.dicePerform,
+          visible: false,
+          content: '',
+          revision: Date.now(),
+        },
+      }),
+    );
+  }
   let dialogKey = Math.random().toString(); // 生成一个随机的key
   let dialogToShow = sentence.content; // 获取对话内容
   if (dialogToShow) {

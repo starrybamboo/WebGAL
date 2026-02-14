@@ -13,6 +13,7 @@ import { cloneDeep, isEqual } from 'lodash';
 import * as PIXI from 'pixi.js';
 import { INSTALLED } from 'pixi.js';
 import { GifResource } from './GifResource';
+import { WebpResource } from './WebpResource';
 
 export interface IAnimationObject {
   setStartState: Function;
@@ -65,6 +66,7 @@ export interface ILive2DRecord {
 window.PIXI = PIXI;
 
 INSTALLED.push(GifResource);
+INSTALLED.push(WebpResource);
 
 export default class PixiStage {
   public static assignTransform<T extends ITransform>(target: T, source?: ITransform) {
@@ -587,7 +589,14 @@ export default class PixiStage {
           const originalHeight = texture.height;
           const scaleX = this.stageWidth / originalWidth;
           const scaleY = this.stageHeight / originalHeight;
-          const targetScale = Math.min(scaleX, scaleY);
+          let targetScale = Math.min(scaleX, scaleY);
+          const stageAspect = this.stageWidth / this.stageHeight;
+          const figureAspect = originalWidth / originalHeight;
+          const useCoverForSide = presetPosition !== 'center' && figureAspect > stageAspect;
+          if (useCoverForSide) {
+            // 左右位对超宽立绘按高度缩放，留出水平位移空间
+            targetScale = scaleY;
+          }
           const figureSprite = new PIXI.Sprite(texture);
           figureSprite.scale.x = targetScale;
           figureSprite.scale.y = targetScale;
@@ -603,10 +612,17 @@ export default class PixiStage {
             thisFigureContainer.setBaseX(this.stageWidth / 2);
           }
           if (presetPosition === 'left') {
-            thisFigureContainer.setBaseX(targetWidth / 2);
+            // 超宽左右位按边裁切时需要反向对齐，避免左右视口颠倒
+            const leftBaseX = useCoverForSide
+              ? (this.stageWidth - targetWidth / 2)
+              : (targetWidth / 2);
+            thisFigureContainer.setBaseX(leftBaseX);
           }
           if (presetPosition === 'right') {
-            thisFigureContainer.setBaseX(this.stageWidth - targetWidth / 2);
+            const rightBaseX = useCoverForSide
+              ? (targetWidth / 2)
+              : (this.stageWidth - targetWidth / 2);
+            thisFigureContainer.setBaseX(rightBaseX);
           }
           thisFigureContainer.pivot.set(0, this.stageHeight / 2);
           thisFigureContainer.addChild(figureSprite);
