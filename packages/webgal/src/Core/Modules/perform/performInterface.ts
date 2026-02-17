@@ -23,6 +23,8 @@ export interface IPerform {
   arrangePerformPromise?: Promise<IPerform>;
   // 跳过由 nextSentence 函数引发的演出回收
   skipNextCollect?: boolean;
+  // 句子推进时是否需要立即结束（即使 skipNextCollect 为 true）
+  stopWhenSentenceAdvanced?: boolean;
 }
 
 // next之后，可以被打断的演出会被打断，不能被打断的演出会继续，阻塞next的演出会阻止next被响应。

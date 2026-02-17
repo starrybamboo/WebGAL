@@ -217,6 +217,10 @@ export const pixi = (sentence: ISentence): IPerform => {
     performName: pixiPerformName,
     duration: once ? Math.max(durationArg ?? DEFAULT_EFFECT_DURATION, 1) : 0,
     isHoldOn: !once,
+    // 一次性特效不应吞掉“下一句”点击；点击应直接作用于当前对话推进。
+    skipNextCollect: once,
+    // 推进句子时，立即结束一次性特效，避免和下一句特效叠加。
+    stopWhenSentenceAdvanced: once,
     stopFunction: () => {
       logger.warn('现在正在卸载pixi演出');
       if (fg) {

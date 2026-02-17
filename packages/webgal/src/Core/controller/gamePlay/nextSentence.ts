@@ -43,6 +43,18 @@ export const nextSentence = () => {
     if (!e.isHoldOn && !e.skipNextCollect) allSettled = false;
   });
   if (allSettled) {
+    // 部分演出（例如一次性 Pixi 特效）虽然跳过常规结算，
+    // 但在真正推进句子时仍应立即结束，避免跨句叠加。
+    for (let i = 0; i < WebGAL.gameplay.performController.performList.length; i++) {
+      const e = WebGAL.gameplay.performController.performList[i];
+      if (!e.isHoldOn && e.stopWhenSentenceAdvanced) {
+        e.stopFunction();
+        clearTimeout(e.stopTimeout as unknown as number);
+        WebGAL.gameplay.performController.performList.splice(i, 1);
+        i--;
+      }
+    }
+
     // 所有普通演出已经结束
     // if (WebGAL.backlogManager.isSaveBacklogNext) {
     //   WebGAL.backlogManager.isSaveBacklogNext = false;
@@ -71,7 +83,7 @@ export const nextSentence = () => {
       if (e.goNextWhenOver) {
         isGoNext = true;
       } // 先检查是不是要跳过收集
-      if (!e.skipNextCollect) {
+      if (!e.skipNextCollect || e.stopWhenSentenceAdvanced) {
         // 由于提前结束使用的不是 unmountPerform 标准 API，所以不会触发两次 nextSentence
         e.stopFunction();
         clearTimeout(e.stopTimeout as unknown as number);

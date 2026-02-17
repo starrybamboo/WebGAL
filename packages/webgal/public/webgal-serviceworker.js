@@ -6,7 +6,23 @@ self.addEventListener('install', (ev) => {
 // fetch事件是每次页面请求资源时触发的
 self.addEventListener('fetch', function (event) {
   const url = event.request.url;
-  const isReturnCache = !!(url.match('/assets/') && !url.match('game'));
+  let parsedUrl;
+  try {
+    parsedUrl = new URL(url);
+  } catch {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  // 仅处理同源 http(s) 资源，避免 chrome-extension 等协议触发 cache.put 报错。
+  const isSupportedProtocol = parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:';
+  const isSameOrigin = parsedUrl.origin === self.location.origin;
+  if (!isSupportedProtocol || !isSameOrigin) {
+    event.respondWith(fetch(event.request));
+    return;
+  }
+
+  const isReturnCache = parsedUrl.pathname.includes('/assets/') && !parsedUrl.pathname.includes('/game/');
   if (isReturnCache) {
     // console.log('%cCACHED: ' + url, 'color: #005CAF; padding: 2px;');
   }

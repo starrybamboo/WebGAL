@@ -15,20 +15,20 @@ interface EffectDefinition {
 }
 
 const EFFECT_DEFINITIONS: EffectDefinition[] = [
-  { name: 'effect.1', file: '飞书20260208-171542.webp' },
-  { name: 'effect.2', file: '飞书20260208-171543.webp' },
-  { name: 'effect.3', file: '飞书20260208-171545.webp' },
-  { name: 'effect.4', file: '飞书20260208-171546.webp' },
-  { name: 'effect.5', file: '飞书20260208-171548.webp' },
-  { name: 'effect.6', file: '飞书20260208-171549.webp' },
-  { name: 'effect.7', file: '飞书20260208-171550.webp' },
-  { name: 'effect.8', file: '飞书20260208-171552.webp' },
-  { name: 'effect.9', file: '飞书20260208-171553.webp' },
-  { name: 'effect.10', file: '飞书20260208-171555.webp' },
-  { name: 'effect.11', file: '飞书20260208-171556.webp' },
-  { name: 'effect.12', file: '飞书20260208-171557.webp' },
-  { name: 'effect.13', file: '飞书20260208-171558.webp' },
-  { name: 'effect.14', file: '飞书20260208-171627.webp' },
+  { name: 'effect.1', file: 'en_hmm.webp' },
+  { name: 'effect.2', file: 'en_doubt.webp' },
+  { name: 'effect.3', file: 'en_answer.webp' },
+  { name: 'effect.4', file: 'en_sad.webp' },
+  { name: 'effect.5', file: 'en_sweat.webp' },
+  { name: 'effect.6', file: 'en_shiny.webp' },
+  { name: 'effect.7', file: 'en_upset.webp' },
+  { name: 'effect.8', file: 'en_shy.webp' },
+  { name: 'effect.9', file: 'en_suki.webp' },
+  { name: 'effect.10', file: 'en_warning.webp' },
+  { name: 'effect.11', file: 'en_omit.webp' },
+  { name: 'effect.12', file: 'en_chat.webp' },
+  { name: 'effect.13', file: 'en_getit.webp' },
+  { name: 'effect.14', file: 'en_angry.webp' },
 ];
 
 const DEFAULT_LAYER: EffectLayer = 'foreground';
