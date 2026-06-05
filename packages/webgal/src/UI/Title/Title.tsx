@@ -8,6 +8,7 @@ import useSoundEffect from '@/hooks/useSoundEffect';
 import useApplyStyle from '@/hooks/useApplyStyle';
 import { keyboard } from '@/hooks/useHotkey';
 import useConfigData from '@/hooks/useConfigData';
+import { isAllowFullSettingsEnabledFromGameVar } from '@/Core/util/allowFullSettings';
 import { playBgm } from '@/Core/controller/stage/playBgm';
 import { continueGame, startGame } from '@/Core/controller/gamePlay/startContinueGame';
 import { showGlogalDialog } from '../GlobalDialog/GlobalDialog';
@@ -29,6 +30,7 @@ export default function Title() {
   useConfigData(); // 监听基础ConfigData变化
 
   const appreciationItems = useSelector((state: RootState) => state.userData.appreciationData);
+  const allowFullSettings = isAllowFullSettingsEnabledFromGameVar(userDataState.globalGameVar);
   const hasAppreciationItems = appreciationItems.bgm.length > 0 || appreciationItems.cg.length > 0;
   const renderButtonText = (text: string) => (
     <div className={applyStyle('Title_button_text', styles.Title_button_text)}>
@@ -83,17 +85,19 @@ export default function Title() {
             >
               {renderButtonText(t('continue.title'))}
             </div>
-            <div
-              className={applyStyle('Title_button', styles.Title_button)}
-              onClick={() => {
-                playSeClick();
-                dispatch(setVisibility({ component: 'showMenuPanel', visibility: true }));
-                dispatch(setMenuPanelTag(MenuPanelTag.Option));
-              }}
-              onMouseEnter={playSeEnter}
-            >
-              {renderButtonText(t('options.title'))}
-            </div>
+            {allowFullSettings && (
+              <div
+                className={applyStyle('Title_button', styles.Title_button)}
+                onClick={() => {
+                  playSeClick();
+                  dispatch(setVisibility({ component: 'showMenuPanel', visibility: true }));
+                  dispatch(setMenuPanelTag(MenuPanelTag.Option));
+                }}
+                onMouseEnter={playSeEnter}
+              >
+                {renderButtonText(t('options.title'))}
+              </div>
+            )}
             <div
               className={applyStyle('Title_button', styles.Title_button)}
               onClick={() => {

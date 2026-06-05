@@ -68,12 +68,18 @@ export const initState: IStageState = {
   live2dExpression: [],
   live2dBlink: [],
   live2dFocus: [],
+  speakingFigureKey: '',
   // currentPerformDelay: 0
   currentConcatDialogPrev: '',
   enableFilm: '',
   isDisableTextbox: false,
   replacedUIlable: {},
   figureMetaData: {},
+  dicePerform: {
+    visible: false,
+    content: '',
+    revision: 0,
+  },
 };
 
 /**

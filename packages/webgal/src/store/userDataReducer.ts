@@ -18,7 +18,7 @@ import {
 } from '@/store/userDataInterface';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import cloneDeep from 'lodash/cloneDeep';
-import { ISetGameVar } from './stageInterface';
+import { ISetGameVar } from '@/Core/Modules/stage/stageInterface';
 
 const initialOptionSet: IOptionData = {
   slPage: 1,
@@ -35,6 +35,7 @@ const initialOptionSet: IOptionData = {
   language: language.zhCn,
   voiceInterruption: voiceOption.no,
   fullScreen: fullScreenOption.off,
+  skipAll: false,
 };
 
 // 初始化用户数据
@@ -47,6 +48,7 @@ export const initState: IUserData = {
     cg: [],
   },
   gameConfigInit: {},
+  readHistory: {},
 };
 
 const userDataSlice = createSlice({
@@ -98,7 +100,13 @@ const userDataSlice = createSlice({
      * @param action
      */
     resetUserData: (state, action: PayloadAction<IUserData>) => {
-      Object.assign(state, action.payload);
+      const mergedState = cloneDeep(initState);
+      Object.assign(mergedState, action.payload);
+      mergedState.optionData = {
+        ...cloneDeep(initialOptionSet),
+        ...(action.payload.optionData ?? {}),
+      };
+      Object.assign(state, mergedState);
     },
     /**
      * 设置选项数据
@@ -142,6 +150,9 @@ const userDataSlice = createSlice({
       const { gameConfigInit } = state;
       Object.assign(state, { ...cloneDeep(initState), globalGameVar: cloneDeep(gameConfigInit), gameConfigInit });
     },
+    setReadHistory: (state, action: PayloadAction<Record<'key' | 'value', string>>) => {
+      state.readHistory[action.payload.key] = action.payload.value;
+    },
   },
 });
 
@@ -156,6 +167,7 @@ export const {
   unlockBgmInUserData,
   resetOptionSet,
   resetAllData,
+  setReadHistory,
 } = userDataSlice.actions;
 export default userDataSlice.reducer;
 

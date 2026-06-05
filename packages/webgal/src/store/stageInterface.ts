@@ -203,6 +203,12 @@ export interface IFigureMetadata {
 
 type figureMetaData = Record<string, IFigureMetadata>;
 
+export interface IDicePerformState {
+  visible: boolean;
+  content: string;
+  revision: number;
+}
+
 /**
  * @interface IStageState 游戏舞台数据接口
  */
@@ -242,6 +248,7 @@ export interface IStageState {
   live2dExpression: ILive2DExpression[];
   live2dBlink: ILive2DBlink[];
   live2dFocus: ILive2DFocus[];
+  speakingFigureKey: string;
   // 当前演出的延迟，用于做对话插演出！
   // currentPerformDelay:number
   currentConcatDialogPrev: string;
@@ -250,6 +257,7 @@ export interface IStageState {
   isDisableTextbox: boolean;
   replacedUIlable: Record<string, string>;
   figureMetaData: figureMetaData;
+  dicePerform: IDicePerformState;
 }
 
 /**

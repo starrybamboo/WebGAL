@@ -1,0 +1,104 @@
+.DicePerform_stage {
+  position: absolute;
+  inset: 0;
+  z-index: 11;
+  pointer-events: none;
+  color: #f6f2ea;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+.DicePerform_card {
+  width: 100%;
+  padding: 24px 28px;
+  border-radius: 18px;
+  background: rgba(6, 10, 16, 0.78);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 16px 40px rgba(0, 0, 0, 0.45),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(4px);
+  animation: DicePerform_fadeIn 160ms ease-out;
+  overflow: hidden;
+}
+
+.DicePerform_optionsCard {
+  position: absolute;
+  top: 2%;
+  right: 2%;
+  width: min(86vw, 1400px);
+  max-height: 70%;
+  padding: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  backdrop-filter: none;
+}
+
+.DicePerform_dialogCard {
+  position: absolute;
+  left: 275px;
+  right: 25px;
+  bottom: 20px;
+  min-height: 330px;
+  max-height: 330px;
+  padding: 1em 50px 70px 200px;
+  border-radius: 165px 20px 20px 165px;
+  background: rgba(8, 12, 18, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  box-shadow:
+    0 18px 36px rgba(0, 0, 0, 0.5),
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+}
+
+.DicePerform_blockHeader {
+  padding: 6px 4px;
+}
+
+.DicePerform_blockOptions {
+  width: 100%;
+  padding: 28px 30px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 14px;
+  background: rgba(18, 22, 30, 0.58);
+  color: #f6f2ea;
+  box-sizing: border-box;
+}
+
+.DicePerform_line {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.1em;
+  line-height: 1.75;
+  font-size: clamp(24px, 2.4vw, 34px);
+  margin-bottom: 0.32em;
+}
+
+.DicePerform_dialogCard .DicePerform_line {
+  font-size: clamp(24px, 2.4vw, 34px);
+  line-height: 1.7;
+}
+
+.DicePerform_blockOptions .DicePerform_line {
+  font-size: clamp(28px, 2.9vw, 38px);
+  line-height: 1.8;
+}
+
+.DicePerform_option {
+  padding-left: 0.8em;
+}
+
+.DicePerform_piece {
+  white-space: pre-wrap;
+}
+
+@keyframes DicePerform_fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}

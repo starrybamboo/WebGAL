@@ -1,6 +1,4 @@
-import { webgalStore } from '@/store/store';
-import { IEffect, IFigureAssociatedAnimation, IFigureMetadata, ITransform } from '@/store/stageInterface';
-import { setStage, stageActions } from '@/store/stageReducer';
+import { IEffect, IFigureAssociatedAnimation, IFigureMetadata, ITransform } from '@/Core/Modules/stage/stageInterface';
 import { Live2D, WebGAL } from '@/Core/WebGAL';
 import { baseBlinkParam, baseFocusParam, BlinkParam, FocusParam } from '@/Core/live2DCore';
 import { isIOS } from '@/Core/initializeScript';
@@ -10,9 +8,13 @@ import { SCREEN_CONSTANTS } from '@/Core/util/constants';
 import { logger } from '@/Core/util/logger';
 import { v4 as uuid } from 'uuid';
 import { cloneDeep, isEqual } from 'lodash';
+import omitBy from 'lodash/omitBy';
+import isUndefined from 'lodash/isUndefined';
 import * as PIXI from 'pixi.js';
 import { INSTALLED } from 'pixi.js';
 import { GifResource } from './GifResource';
+import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
+import { WebpResource } from './WebpResource';
 
 export interface IAnimationObject {
   setStartState: Function;
@@ -65,15 +67,16 @@ export interface ILive2DRecord {
 window.PIXI = PIXI;
 
 INSTALLED.push(GifResource);
+INSTALLED.push(WebpResource);
 
 export default class PixiStage {
   public static assignTransform<T extends ITransform>(target: T, source?: ITransform, convertAlpha = true) {
     if (!source) return;
     const targetScale = target.scale;
     const targetPosition = target.position;
-    if (target.scale) Object.assign(targetScale, source.scale);
-    if (target.position) Object.assign(targetPosition, source.position);
-    Object.assign(target, source);
+    if (target.scale) Object.assign(targetScale!, omitBy(source.scale || {}, isUndefined));
+    if (target.position) Object.assign(targetPosition!, omitBy(source.position || {}, isUndefined));
+    Object.assign(target, omitBy(source, isUndefined));
     target.scale = targetScale;
     target.position = targetPosition;
     if (convertAlpha) {
@@ -92,15 +95,14 @@ export default class PixiStage {
   public readonly mainStageContainer: WebGALPixiContainer;
   public readonly foregroundEffectsContainer: PIXI.Container;
   public readonly backgroundEffectsContainer: PIXI.Container;
-  public frameDuration = 16.67;
   public notUpdateBacklogEffects = false;
   public readonly figureContainer: PIXI.Container;
-  public figureObjects: Array<IStageObject> = [];
+  public figureObjects = this.createReactiveList<IStageObject>([]);
   public stageWidth = SCREEN_CONSTANTS.width;
   public stageHeight = SCREEN_CONSTANTS.height;
   public assetLoader = new PIXI.Loader();
   public readonly backgroundContainer: PIXI.Container;
-  public backgroundObjects: Array<IStageObject> = [];
+  public backgroundObjects = this.createReactiveList<IStageObject>([]);
   public mainStageObject: IStageObject;
   /**
    * 添加 Spine 立绘
@@ -111,11 +113,15 @@ export default class PixiStage {
   public addSpineFigure = addSpineFigureImpl.bind(this);
   public addSpineBg = addSpineBgImpl.bind(this);
   // 注册到 Ticker 上的函数
-  private stageAnimations: Array<IStageAnimationObject> = [];
+  private stageAnimations = this.createReactiveList<IStageAnimationObject>([]);
   private loadQueue: { url: string; callback: () => void; name?: string }[] = [];
   private live2dFigureRecorder: Array<ILive2DRecord> = [];
   // 锁定变换对象（对象可能正在执行动画，不能应用变换）
   private lockTransformTarget: Array<string> = [];
+  // 手动请求渲染防抖标记
+  private isRenderPending = false;
+  // 更新 ticker 状态的防抖标记
+  private isTickerUpdatePending = false;
 
   /**
    * 暂时没用上，以后可能用
@@ -128,6 +134,7 @@ export default class PixiStage {
     const app = new PIXI.Application({
       backgroundAlpha: 0,
       preserveDrawingBuffer: true,
+      autoStart: false,
     });
     // @ts-ignore
 
@@ -189,19 +196,26 @@ export default class PixiStage {
       this.backgroundContainer,
     );
     this.currentApp = app;
-    // 每 5s 获取帧率，并且防 loader 死
-    const update = () => {
-      this.updateFps();
-      setTimeout(update, 10000);
-    };
-    update();
     // loader 防死
     const reload = () => {
       setTimeout(reload, 500);
       this.callLoader();
     };
     reload();
-    this.initialize().then(() => {});
+    this.initialize();
+    this.requestRender();
+  }
+
+  public requestRender() {
+    if (this.isRenderPending) return;
+    this.isRenderPending = true;
+
+    requestAnimationFrame(() => {
+      this.isRenderPending = false;
+      if (!this.currentApp?.ticker.started) {
+        this.currentApp?.render();
+      }
+    });
   }
 
   public getFigureObjects() {
@@ -249,6 +263,7 @@ export default class PixiStage {
         const container = targetPixiContainer.pixiContainer;
         if (container) PixiStage.assignTransform(container, effect.transform);
       }
+      this.requestRender();
       return;
     }
     this.stageAnimations.push({ uuid: uuid(), animationObject, key: key, targetKey: target, type: 'preset' });
@@ -326,8 +341,8 @@ export default class PixiStage {
             target: thisTickerFunc.targetKey,
             transform: endStateEffect,
           };
-          webgalStore.dispatch(stageActions.updateEffect(effect));
-          // if (!this.notUpdateBacklogEffects) updateCurrentBacklogEffects(webgalStore.getState().stage.effects);
+          stageStateManager.updateEffect(effect);
+          // if (!this.notUpdateBacklogEffects) updateCurrentBacklogEffects(stageStateManager.getViewStageState().effects);
         }
       }
       this.stageAnimations.splice(index, 1);
@@ -361,6 +376,7 @@ export default class PixiStage {
         return;
       }
       sprite.texture = texture;
+      this.requestRender();
     });
   }
 
@@ -389,6 +405,7 @@ export default class PixiStage {
         return;
       }
       sprite.texture = texture;
+      this.requestRender();
     });
   }
 
@@ -416,13 +433,14 @@ export default class PixiStage {
     // 挂载
     this.backgroundContainer.addChild(thisBgContainer);
     const bgUuid = uuid();
+    const sourceExt = this.getExtName(url);
     this.backgroundObjects.push({
       uuid: bgUuid,
       key: key,
       pixiContainer: thisBgContainer,
       sourceUrl: url,
-      sourceType: 'img',
-      sourceExt: this.getExtName(url),
+      sourceType: sourceExt === 'gif' ? 'gif' : 'img',
+      sourceExt,
     });
 
     // 完成图片加载后执行的函数
@@ -451,6 +469,7 @@ export default class PixiStage {
 
           // 挂载
           thisBgContainer.addChild(bgSprite);
+          this.requestRender();
         }
       }, 0);
     };
@@ -583,13 +602,14 @@ export default class PixiStage {
     // 挂载
     this.figureContainer.addChild(thisFigureContainer);
     const figureUuid = uuid();
+    const sourceExt = this.getExtName(url);
     this.figureObjects.push({
       uuid: figureUuid,
       key: key,
       pixiContainer: thisFigureContainer,
       sourceUrl: url,
-      sourceType: 'img',
-      sourceExt: this.getExtName(url),
+      sourceType: sourceExt === 'gif' ? 'gif' : 'img',
+      sourceExt,
     });
 
     // 完成图片加载后执行的函数
@@ -605,7 +625,14 @@ export default class PixiStage {
           const originalHeight = texture.height;
           const scaleX = this.stageWidth / originalWidth;
           const scaleY = this.stageHeight / originalHeight;
-          const targetScale = Math.min(scaleX, scaleY);
+          let targetScale = Math.min(scaleX, scaleY);
+          const stageAspect = this.stageWidth / this.stageHeight;
+          const figureAspect = originalWidth / originalHeight;
+          const useCoverForSide = presetPosition !== 'center' && figureAspect > stageAspect;
+          if (useCoverForSide) {
+            // 左右位对超宽立绘按高度缩放，留出水平位移空间
+            targetScale = scaleY;
+          }
           const figureSprite = new PIXI.Sprite(texture);
           figureSprite.scale.x = targetScale;
           figureSprite.scale.y = targetScale;
@@ -621,13 +648,21 @@ export default class PixiStage {
             thisFigureContainer.setBaseX(this.stageWidth / 2);
           }
           if (presetPosition === 'left') {
-            thisFigureContainer.setBaseX(targetWidth / 2);
+            // 超宽左右位按边裁切时需要反向对齐，避免左右视口颠倒
+            const leftBaseX = useCoverForSide
+              ? (this.stageWidth - targetWidth / 2)
+              : (targetWidth / 2);
+            thisFigureContainer.setBaseX(leftBaseX);
           }
           if (presetPosition === 'right') {
-            thisFigureContainer.setBaseX(this.stageWidth - targetWidth / 2);
+            const rightBaseX = useCoverForSide
+              ? (targetWidth / 2)
+              : (this.stageWidth - targetWidth / 2);
+            thisFigureContainer.setBaseX(rightBaseX);
           }
           thisFigureContainer.pivot.set(0, this.stageHeight / 2);
           thisFigureContainer.addChild(figureSprite);
+          this.requestRender();
         }
       }, 0);
     };
@@ -697,7 +732,7 @@ export default class PixiStage {
         if (thisFigureContainer && this.getStageObjByUuid(figureUuid)) {
           (async function () {
             let overrideBounds: [number, number, number, number] = [0, 0, 0, 0];
-            const mot = webgalStore.getState().stage.live2dMotion.find((e) => e.target === key);
+            const mot = stageStateManager.getViewStageState().live2dMotion.find((e) => e.target === key);
             if (mot?.overrideBounds) {
               overrideBounds = mot.overrideBounds;
             }
@@ -748,7 +783,7 @@ export default class PixiStage {
 
               // motion
               let motionToSet = '';
-              const motionFromState = webgalStore.getState().stage.live2dMotion.find((e) => e.target === key);
+              const motionFromState = stageStateManager.getViewStageState().live2dMotion.find((e) => e.target === key);
               if (motionFromState) {
                 motionToSet = motionFromState.motion;
               }
@@ -757,7 +792,9 @@ export default class PixiStage {
 
               // expression
               let expressionToSet = '';
-              const expressionFromState = webgalStore.getState().stage.live2dExpression.find((e) => e.target === key);
+              const expressionFromState = stageStateManager
+                .getViewStageState()
+                .live2dExpression.find((e) => e.target === key);
               if (expressionFromState) {
                 expressionToSet = expressionFromState.expression;
               }
@@ -766,7 +803,7 @@ export default class PixiStage {
 
               // blink
               let blinkToSet: BlinkParam = baseBlinkParam;
-              const blinkFromState = webgalStore.getState().stage.live2dBlink.find((e) => e.target === key);
+              const blinkFromState = stageStateManager.getViewStageState().live2dBlink.find((e) => e.target === key);
               if (blinkFromState) {
                 blinkToSet = { ...blinkToSet, ...blinkFromState.blink };
               }
@@ -775,7 +812,7 @@ export default class PixiStage {
 
               // focus
               let focusToSet: FocusParam = baseFocusParam;
-              const focusFromState = webgalStore.getState().stage.live2dFocus.find((e) => e.target === key);
+              const focusFromState = stageStateManager.getViewStageState().live2dFocus.find((e) => e.target === key);
               if (focusFromState) {
                 focusToSet = { ...focusToSet, ...focusFromState.focus };
               }
@@ -1053,7 +1090,7 @@ export default class PixiStage {
     // /**
     //  * 删掉相关 Effects，因为已经移除了
     //  */
-    // const prevEffects = webgalStore.getState().stage.effects;
+    // const prevEffects = stageStateManager.getViewStageState().effects;
     // const newEffects = __.cloneDeep(prevEffects);
     // const index = newEffects.findIndex((e) => e.target === key);
     // if (index >= 0) {
@@ -1067,11 +1104,11 @@ export default class PixiStage {
   }
 
   public getExtName(url: string) {
-    return url.split('.').pop() ?? 'png';
+    return (url.split(/[?#]/)[0].split('.').pop() ?? 'png').toLowerCase();
   }
 
   public getFigureMetadataByKey(key: string): IFigureMetadata | undefined {
-    return webgalStore.getState().stage.figureMetaData[key];
+    return stageStateManager.getViewStageState().figureMetaData[key];
   }
 
   public loadAsset(url: string, callback: () => void, name?: string) {
@@ -1152,13 +1189,6 @@ export default class PixiStage {
     }
   }
 
-  private updateFps() {
-    getScreenFps?.(120).then((fps) => {
-      this.frameDuration = 1000 / (fps as number);
-      // logger.info('当前帧率', fps);
-    });
-  }
-
   private lockStageObject(targetName: string) {
     this.lockTransformTarget.push(targetName);
   }
@@ -1177,6 +1207,60 @@ export default class PixiStage {
       console.error('Failed to load figureCash:', error);
     }
   }
+
+  private createReactiveList<T extends object>(array: T[]): T[] {
+    return new Proxy(array, {
+      // eslint-disable-next-line max-params
+      set: (target, property, value, receiver) => {
+        const result = Reflect.set(target, property, value, receiver);
+        this.updateTickerStatus();
+        return result;
+      },
+      deleteProperty: (target, property) => {
+        const result = Reflect.deleteProperty(target, property);
+        this.updateTickerStatus();
+        return result;
+      },
+    });
+  }
+
+  private updateTickerStatus() {
+    if (this.isTickerUpdatePending) return;
+    this.isTickerUpdatePending = true;
+
+    Promise.resolve().then(() => {
+      this.isTickerUpdatePending = false;
+      const app = this.currentApp;
+      if (!app) return;
+
+      const hasActiveAnimations = this.stageAnimations.length > 0;
+      const allObjects = [...this.figureObjects, ...this.backgroundObjects];
+      const hasDynamicObjects = allObjects.some(
+        (obj) =>
+          obj.sourceType === 'live2d' ||
+          obj.sourceType === 'spine' ||
+          obj.sourceType === 'video' ||
+          obj.sourceType === 'gif',
+      );
+
+      const shouldRun = hasActiveAnimations || hasDynamicObjects;
+
+      if (shouldRun) {
+        if (!app.ticker.started) {
+          app.ticker.start();
+          logger.debug('Ticker: STARTED');
+        }
+      } else {
+        if (app.ticker.started) {
+          app.ticker.stop();
+          this.currentApp?.render();
+          logger.debug('Ticker: STOPPED');
+        } else {
+          this.requestRender();
+        }
+      }
+    });
+  }
 }
 
 function updateCurrentBacklogEffects(newEffects: IEffect[]) {
@@ -1187,42 +1271,5 @@ function updateCurrentBacklogEffects(newEffects: IEffect[]) {
     WebGAL.backlogManager.editLastBacklogItemEffect(cloneDeep(newEffects));
   }, 50);
 
-  webgalStore.dispatch(setStage({ key: 'effects', value: newEffects }));
+  stageStateManager.setStageAndCommit('effects', newEffects);
 }
-
-/**
- * @param {number} targetCount 不小于1的整数，表示经过targetCount帧之后返回结果
- * @return {Promise<number>}
- */
-const getScreenFps = (() => {
-  // 先做一下兼容性处理
-  const nextFrame = [
-    window.requestAnimationFrame,
-    // @ts-ignore
-    window.webkitRequestAnimationFrame,
-    // @ts-ignore
-    window.mozRequestAnimationFrame,
-  ].find((fn) => fn);
-  if (!nextFrame) {
-    console.error('requestAnimationFrame is not supported!');
-    return;
-  }
-  return (targetCount = 60) => {
-    // 判断参数是否合规
-    if (targetCount < 1) throw new Error('targetCount cannot be less than 1.');
-    const beginDate = Date.now();
-    let count = 0;
-    return new Promise((resolve) => {
-      (function log() {
-        nextFrame(() => {
-          if (++count >= targetCount) {
-            const diffDate = Date.now() - beginDate;
-            const fps = (count / diffDate) * 1000;
-            return resolve(fps);
-          }
-          log();
-        });
-      })();
-    });
-  };
-})();

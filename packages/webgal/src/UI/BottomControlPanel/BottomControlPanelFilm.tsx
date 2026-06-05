@@ -7,11 +7,16 @@ import { setMenuPanelTag, setVisibility } from '@/store/GUIReducer';
 import { componentsVisibility, MenuPanelTag } from '@/store/guiInterface';
 import { backToTitle } from '@/Core/controller/gamePlay/backToTitle';
 import { useValue } from '@/hooks/useValue';
+import { isAllowFullSettingsEnabledFromGameVar } from '@/Core/util/allowFullSettings';
 import { HamburgerButton } from '@icon-park/react';
+import { useStageState } from '@/hooks/useStageState';
 
 export const BottomControlPanelFilm = () => {
   const showPanel = useValue(false);
-  const stageState = useSelector((state: RootState) => state.stage);
+  const stageState = useStageState();
+  const allowFullSettings = useSelector((state: RootState) =>
+    isAllowFullSettingsEnabledFromGameVar(state.userData.globalGameVar),
+  );
   const dispatch = useDispatch();
   const setComponentVisibility = (component: keyof componentsVisibility, visibility: boolean) => {
     dispatch(setVisibility({ component, visibility }));
@@ -97,16 +102,18 @@ export const BottomControlPanelFilm = () => {
               >
                 <span className={styles.button_text}>读档 / LOAD</span>
               </span>
-              <span
-                className={styles.singleButton}
-                onClick={() => {
-                  showPanel.set(!showPanel.value);
-                  setMenuPanel(MenuPanelTag.Option);
-                  setComponentVisibility('showMenuPanel', true);
-                }}
-              >
-                <span className={styles.button_text}>选项 / OPTIONS</span>
-              </span>
+              {allowFullSettings && (
+                <span
+                  className={styles.singleButton}
+                  onClick={() => {
+                    showPanel.set(!showPanel.value);
+                    setMenuPanel(MenuPanelTag.Option);
+                    setComponentVisibility('showMenuPanel', true);
+                  }}
+                >
+                  <span className={styles.button_text}>选项 / OPTIONS</span>
+                </span>
+              )}
               <span
                 className={styles.singleButton}
                 onClick={() => {

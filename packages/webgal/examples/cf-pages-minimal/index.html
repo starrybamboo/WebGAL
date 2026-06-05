@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1,minimum-scale=1,maximum-scale=1,user-scalable=no" />
+    <title>WebGAL CF Pages Demo</title>
+    <style>
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        background: #050816;
+        color: #eef2ff;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      }
+      .file-hint {
+        display: none;
+        min-height: 100%;
+        align-items: center;
+        justify-content: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      .file-hint__card {
+        max-width: 720px;
+        width: 100%;
+        padding: 28px 32px;
+        border-radius: 20px;
+        background: rgba(15, 23, 42, 0.92);
+        border: 1px solid rgba(148, 163, 184, 0.25);
+        box-shadow: 0 24px 80px rgba(0, 0, 0, 0.35);
+        line-height: 1.7;
+      }
+      .file-hint__title {
+        font-size: 28px;
+        font-weight: 700;
+        margin-bottom: 12px;
+      }
+      .file-hint__code {
+        margin-top: 16px;
+        padding: 12px 14px;
+        border-radius: 12px;
+        background: rgba(30, 41, 59, 0.85);
+        color: #cbd5e1;
+        overflow: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="file-hint" id="fileHint">
+      <div class="file-hint__card">
+        <div class="file-hint__title">这个示例需要通过 HTTP/Pages 打开</div>
+        <div>`file://` 会拦截 WebGAL 的模块脚本加载，所以直开会白屏。</div>
+        <div>请用本地静态服务或 Pages 预览这个地址：</div>
+        <div class="file-hint__code">http://127.0.0.1:4173/examples/cf-pages-minimal/index.html</div>
+      </div>
+    </div>
+    <script>
+      if (location.protocol === 'file:') {
+        document.getElementById('fileHint').style.display = 'flex';
+      } else {
+        window.__TUANCHAT_WEBGAL__ = {
+          autoStart: true,
+          startScene: 'game/scene/start.txt',
+          gameDir: './game/',
+        };
+
+        const script = document.createElement('script');
+        script.type = 'module';
+        script.src = '../../dist/engine/loader.js';
+        document.head.appendChild(script);
+      }
+    </script>
+  </body>
+</html>

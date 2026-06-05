@@ -1,4 +1,4 @@
-import { baseTransform, IEffect, IStageState, ITransform } from '@/store/stageInterface';
+﻿import { baseTransform, IEffect, IStageState, ITransform } from '@/Core/Modules/stage/stageInterface';
 
 import { WebGAL } from '@/Core/WebGAL';
 import PixiStage from '@/Core/controller/stage/pixi/PixiController';
@@ -42,5 +42,5 @@ function convertTransform(transform: ITransform | undefined) {
     return {};
   }
   const { position, ...rest } = transform;
-  return { ...rest, x: position.x, y: position.y };
+  return position ? { ...rest, x: position.x, y: position.y } : rest;
 }

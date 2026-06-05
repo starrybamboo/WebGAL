@@ -1,0 +1,37 @@
+[
+    {
+        "scale": {
+            "x": 1,
+            "y": 1
+        },
+        "duration": 0
+    },
+    {
+        "scale": {
+            "x": -1,
+            "y": 1
+        },
+        "duration": 100
+    },
+    {
+        "scale": {
+            "x": -1,
+            "y": 1
+        },
+        "duration": 600
+    },
+    {
+        "scale": {
+            "x": 1,
+            "y": 1
+        },
+        "duration": 100
+    },
+    {
+        "scale": {
+            "x": 1,
+            "y": 1
+        },
+        "duration": 600
+    }
+]

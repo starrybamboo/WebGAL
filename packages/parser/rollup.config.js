@@ -16,6 +16,7 @@ export default [
       },
     plugins: [
       resolve(), commonjs(), typescript({
+        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
@@ -36,10 +37,12 @@ export default [
     ],
     plugins: [
       resolve(), commonjs(), typescript({
+        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
             sourceMap: !isProd,
+            rootDir: "src",
             declarationDir: "build/cjs"
           }, include: ["src"]
         }
@@ -57,10 +60,12 @@ export default [
     ],
     plugins: [
       resolve(), commonjs(), typescript({
+        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
             sourceMap: !isProd,
+            rootDir: "src",
             declarationDir: "build/types"
           }, include: ["src"]
         }

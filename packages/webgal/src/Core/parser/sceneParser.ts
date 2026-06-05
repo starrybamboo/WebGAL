@@ -25,6 +25,7 @@ import { setTempAnimation } from '@/Core/gameScripts/setTempAnimation';
 import { setTextbox } from '@/Core/gameScripts/setTextbox';
 import { setTransform } from '@/Core/gameScripts/setTransform';
 import { setTransition } from '@/Core/gameScripts/setTransition';
+import { dicePerform } from '@/Core/gameScripts/dicePerform';
 import { unlockBgm } from '@/Core/gameScripts/unlockBgm';
 import { unlockCg } from '@/Core/gameScripts/unlockCg';
 import { callSteam } from '@/Core/gameScripts/callSteam';
@@ -73,6 +74,8 @@ export const SCRIPT_TAG_MAP = defineScripts({
   getUserInput: ScriptConfig(commandType.getUserInput, getUserInput),
   applyStyle: ScriptConfig(commandType.applyStyle, applyStyle, { next: true }),
   wait: ScriptConfig(commandType.wait, wait),
+  dice: ScriptConfig(commandType.dice, dicePerform),
+  trpgDice: ScriptConfig(commandType.dice, dicePerform),
   callSteam: ScriptConfig(commandType.callSteam, callSteam, { next: true }),
 });
 

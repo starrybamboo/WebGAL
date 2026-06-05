@@ -1,0 +1,77 @@
+.overlayRoot {
+  position: absolute;
+  top: 24px;
+  right: 24px;
+  z-index: 14;
+  // WebGAL 的 #root 固定为 2560x1440 后整体 scale，覆盖层要使用设计稿像素，避免 vw/vh 被二次缩放。
+  width: 1040px;
+  max-height: 1040px;
+  pointer-events: none;
+  color: #f8fafc;
+  font-family: "Inter", "Noto Sans SC", system-ui, sans-serif;
+}
+
+.mapFrame {
+  position: relative;
+  overflow: hidden;
+  aspect-ratio: 1 / 1;
+  filter: drop-shadow(0 12px 24px rgb(0 0 0 / 32%));
+}
+
+.mapImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.emptyMap {
+  width: 100%;
+  height: 100%;
+  background: rgb(15 23 42 / 72%);
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  --tc-battle-grid-line-width: 3px;
+  opacity: 0.96;
+  box-shadow: inset 0 0 0 var(--tc-battle-grid-line-width) var(--tc-battle-grid-color, rgb(255 255 255 / 72%));
+  pointer-events: none;
+}
+
+.token {
+  position: absolute;
+  width: 76px;
+  height: 76px;
+  overflow: hidden;
+  border: 2px solid rgb(255 255 255 / 90%);
+  border-radius: 999px;
+  background: #2563eb;
+  box-shadow: 0 8px 20px rgb(0 0 0 / 36%);
+  transform: translate(-50%, -50%);
+}
+
+.tokenImage {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.tokenLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+@media (max-width: 720px) {
+  .overlayRoot {
+    top: 24px;
+    right: 24px;
+  }
+}

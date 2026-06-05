@@ -10,6 +10,7 @@
     "dev": "yarn parser:build && yarn webgal:dev",
     "webgal:dev": "cd packages/webgal && yarn dev",
     "webgal:build": "cd packages/webgal && yarn build",
+    "webgal:build:shared": "cd packages/webgal && yarn build:shared-engine",
     "parser:test": "cd packages/parser && yarn test",
     "parser:test-coverage": "cd packages/parser && yarn coverage",
     "parser:build": "cd packages/parser && yarn build",

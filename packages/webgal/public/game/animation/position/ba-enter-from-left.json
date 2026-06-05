@@ -1,0 +1,18 @@
+[
+    {
+        "alpha": 1,
+        "position": {
+            "x": -700,
+            "y": 0
+        },
+        "duration": 0
+    },
+    {
+        "alpha": 1,
+        "position": {
+            "x": 0,
+            "y": 0
+        },
+        "duration": 1200
+    }
+]
