@@ -39,6 +39,7 @@ export const SCRIPT_CONFIG = [
   { scriptString: 'applyStyle', scriptType: commandType.applyStyle },
   { scriptString: 'wait', scriptType: commandType.wait },
   { scriptString: 'callSteam', scriptType: commandType.callSteam },
+  { scriptString: 'tuanChatMap', scriptType: commandType.tuanChatMap },
 ];
 export const ADD_NEXT_ARG_LIST = [
   commandType.bgm,
@@ -55,6 +56,7 @@ export const ADD_NEXT_ARG_LIST = [
   commandType.setTransition,
   commandType.applyStyle,
   commandType.callSteam,
+  commandType.tuanChatMap,
 ];
 
 export type ConfigMap = Map<string, ConfigItem>;

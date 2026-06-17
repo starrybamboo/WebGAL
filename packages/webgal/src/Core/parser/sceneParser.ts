@@ -38,6 +38,7 @@ import { showVars } from '../gameScripts/showVars';
 import { defineScripts, IConfigInterface, ScriptConfig, ScriptFunction, scriptRegistry } from './utils';
 import { applyStyle } from '@/Core/gameScripts/applyStyle';
 import { wait } from '@/Core/gameScripts/wait';
+import { tuanChatMap } from '@/Core/gameScripts/tuanChatMap';
 
 export const SCRIPT_TAG_MAP = defineScripts({
   say: ScriptConfig(commandType.say, say),
@@ -77,6 +78,7 @@ export const SCRIPT_TAG_MAP = defineScripts({
   dice: ScriptConfig(commandType.dice, dicePerform),
   trpgDice: ScriptConfig(commandType.dice, dicePerform),
   callSteam: ScriptConfig(commandType.callSteam, callSteam, { next: true }),
+  tuanChatMap: ScriptConfig(commandType.tuanChatMap, tuanChatMap, { next: true }),
 });
 
 export const SCRIPT_CONFIG: IConfigInterface[] = Object.values(SCRIPT_TAG_MAP);

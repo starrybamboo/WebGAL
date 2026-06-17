@@ -41,6 +41,7 @@ export enum commandType {
   wait,
   callSteam, // 调用Steam功能
   dice,
+  tuanChatMap, // 团剧共创地图
 }
 
 /**

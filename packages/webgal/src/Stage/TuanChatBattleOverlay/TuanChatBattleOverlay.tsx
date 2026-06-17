@@ -1,21 +1,12 @@
 import React, { CSSProperties, FC, useEffect, useMemo, useState } from 'react';
 import {
-  buildTuanChatMapTokenVarKey,
   buildTuanChatRoleVarKey,
   TUANCHAT_COMBAT_ACTIVE_VAR,
   TUANCHAT_COMBAT_TURN_VAR,
-  TUANCHAT_MAP_BACKGROUND_VAR,
-  TUANCHAT_MAP_CONFIG_ACTIVE_VAR,
-  TUANCHAT_MAP_GRID_COLS_VAR,
-  TUANCHAT_MAP_GRID_COLOR_VAR,
-  TUANCHAT_MAP_GRID_ROWS_VAR,
-  TUANCHAT_MAP_OVERLAY_ACTIVE_VAR,
-  TUANCHAT_ROLE_AVATAR_URL_KEY,
   TUANCHAT_ROLE_IDS_VAR,
 } from '@/Core/util/tuanChatGameVars';
-import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import { useStageState } from '@/hooks/useStageState';
-import type { IGameVar } from '@/Core/Modules/stage/stageInterface';
+import { createInitialTuanChatMapState, type IGameVar, type IStageState, type ITuanChatMapState } from '@/Core/Modules/stage/stageInterface';
 import styles from './tuanChatBattleOverlay.module.scss';
 
 const TUANCHAT_BATTLE_OVERLAY_MESSAGE_TYPE = 'TUANCHAT_BATTLE_OVERLAY_SYNC';
@@ -228,18 +219,6 @@ function collectRoleIdsFromGameVars(gameVars: GameVars): Set<number> {
   return roleIds;
 }
 
-function collectMapTokenRoleIdsFromGameVars(gameVars: GameVars): Set<number> {
-  const roleIds = new Set<number>();
-  Object.keys(gameVars).forEach((key) => {
-    const match = key.match(/^tuanchat\.map\.token\.(\d+)\.(active|rowIndex|colIndex)$/);
-    const roleId = match ? toPositiveInteger(match[1]) : null;
-    if (roleId) {
-      roleIds.add(roleId);
-    }
-  });
-  return roleIds;
-}
-
 function clampHpPercent(hp: number | null, maxHp: number | null): number | null {
   if (hp == null || maxHp == null || maxHp <= 0) {
     return null;
@@ -257,14 +236,15 @@ function readRoleNumber(gameVars: GameVars, roleId: number, keys: string[]): num
   return null;
 }
 
-function readRoleString(gameVars: GameVars, roleId: number, key: string): string {
-  return readGameVarString(gameVars, buildTuanChatRoleVarKey(roleId, key));
-}
-
-function buildRolesFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: GameVars): BattleOverlayRoleSnapshot[] {
+function buildRolesFromGameVars(
+  baseSnapshot: BattleOverlaySnapshot,
+  gameVars: GameVars,
+  mapState: ITuanChatMapState,
+): BattleOverlayRoleSnapshot[] {
   const baseRolesById = new Map(baseSnapshot.roles.map(role => [role.roleId, role] as const));
   const roleIds = collectRoleIdsFromGameVars(gameVars);
   baseSnapshot.roles.forEach(role => roleIds.add(role.roleId));
+  mapState.tokens.forEach(token => roleIds.add(token.roleId));
 
   return [...roleIds]
     .map((roleId): BattleOverlayRoleSnapshot => {
@@ -275,7 +255,7 @@ function buildRolesFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: G
       return {
         roleId,
         name: baseRole?.name ?? `#${roleId}`,
-        avatarUrl: readRoleString(gameVars, roleId, TUANCHAT_ROLE_AVATAR_URL_KEY) || baseRole?.avatarUrl || '',
+        avatarUrl: baseRole?.avatarUrl || '',
         hp,
         maxHp,
         hpPercent: clampHpPercent(hp, maxHp),
@@ -302,74 +282,41 @@ function resolveCurrentActorRoleId(
   return roles.some(role => role.roleId === fallbackRoleId) ? fallbackRoleId : null;
 }
 
-function resolveMapBackgroundImageUrl(rawBackground: string): string {
-  const background = rawBackground.trim();
-  if (!background) {
-    return '';
-  }
-  return assetSetter(background, fileType.background);
-}
-
-function buildMapFromGameVars(
+function buildMapFromTuanChatMapState(
   baseSnapshot: BattleOverlaySnapshot,
-  gameVars: GameVars,
+  mapState: ITuanChatMapState,
 ): BattleOverlayMapSnapshot | null {
-  const baseMap = baseSnapshot.map;
-  const hasBackgroundVar = Object.prototype.hasOwnProperty.call(gameVars, TUANCHAT_MAP_BACKGROUND_VAR);
-  const background = readGameVarString(gameVars, TUANCHAT_MAP_BACKGROUND_VAR);
-  const mapConfigActive = readGameVarBoolean(gameVars, TUANCHAT_MAP_CONFIG_ACTIVE_VAR);
-  const hasExplicitMapConfig = mapConfigActive != null;
-  const isExplicitMapClear = mapConfigActive === false && hasBackgroundVar && !background;
-  // 初始化会写入空 background；只有 map.config.active=false 才代表真正清图。
-  const imageUrl = background
-    ? resolveMapBackgroundImageUrl(background)
-    : (isExplicitMapClear ? '' : baseMap?.imageUrl ?? '');
-  const gridRows = readGameVarNumber(gameVars, TUANCHAT_MAP_GRID_ROWS_VAR) ?? baseMap?.gridRows ?? 10;
-  const gridCols = readGameVarNumber(gameVars, TUANCHAT_MAP_GRID_COLS_VAR) ?? baseMap?.gridCols ?? 10;
-  const gridColor = normalizeGridColor(readGameVarString(gameVars, TUANCHAT_MAP_GRID_COLOR_VAR) || baseMap?.gridColor || DEFAULT_GRID_COLOR);
   const baseRolesById = new Map(baseSnapshot.roles.map(role => [role.roleId, role] as const));
-  const baseTokensByRoleId = new Map((baseMap?.tokens ?? []).map(token => [token.roleId, token] as const));
-  const tokenRoleIds = collectMapTokenRoleIdsFromGameVars(gameVars);
-  const hasTokenVars = tokenRoleIds.size > 0;
-  const tokens = hasTokenVars
-    ? [...tokenRoleIds]
-        .map((roleId): BattleOverlayMapTokenSnapshot | null => {
-          const active = readGameVarBoolean(gameVars, buildTuanChatMapTokenVarKey(roleId, 'active'));
-          const rowIndex = readGameVarNumber(gameVars, buildTuanChatMapTokenVarKey(roleId, 'rowIndex'));
-          const colIndex = readGameVarNumber(gameVars, buildTuanChatMapTokenVarKey(roleId, 'colIndex'));
-          if (active === false || rowIndex == null || colIndex == null) {
-            return null;
-          }
-          const baseToken = baseTokensByRoleId.get(roleId);
-          const baseRole = baseRolesById.get(roleId);
-          return {
-            roleId,
-            rowIndex,
-            colIndex,
-            name: baseToken?.name ?? baseRole?.name ?? normalizeTokenName(roleId),
-            avatarUrl: readRoleString(gameVars, roleId, TUANCHAT_ROLE_AVATAR_URL_KEY),
-          };
-        })
-        .filter((token): token is BattleOverlayMapTokenSnapshot => Boolean(token))
-    : baseMap?.tokens ?? [];
+  const tokens = mapState.tokens.map((token): BattleOverlayMapTokenSnapshot => {
+    const baseRole = baseRolesById.get(token.roleId);
+    return {
+      roleId: token.roleId,
+      rowIndex: token.rowIndex,
+      colIndex: token.colIndex,
+      name: token.name || baseRole?.name || normalizeTokenName(token.roleId),
+      avatarUrl: token.avatarUrl || baseRole?.avatarUrl || '',
+    };
+  });
 
-  if (!imageUrl && !baseMap && tokens.length === 0 && !hasExplicitMapConfig) {
+  if (!mapState.visible && !mapState.configActive && !mapState.imageUrl && tokens.length === 0) {
     return null;
   }
   return {
-    imageUrl,
-    gridRows,
-    gridCols,
-    gridColor,
+    imageUrl: mapState.imageUrl,
+    gridRows: mapState.gridRows,
+    gridCols: mapState.gridCols,
+    gridColor: normalizeGridColor(mapState.gridColor || DEFAULT_GRID_COLOR),
     tokens,
   };
 }
 
-function buildSnapshotFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: GameVars): BattleOverlaySnapshot {
+function buildSnapshotFromStageState(baseSnapshot: BattleOverlaySnapshot, stageState: IStageState): BattleOverlaySnapshot {
+  const gameVars = stageState.GameVar;
+  const mapState = stageState.tuanChatMap ?? createInitialTuanChatMapState();
   const combatVisible = readGameVarBoolean(gameVars, TUANCHAT_COMBAT_ACTIVE_VAR) ?? (baseSnapshot.round != null);
-  const overlayVisible = readGameVarBoolean(gameVars, TUANCHAT_MAP_OVERLAY_ACTIVE_VAR) ?? false;
-  const roles = buildRolesFromGameVars(baseSnapshot, gameVars);
-  const map = buildMapFromGameVars(baseSnapshot, gameVars);
+  const roles = buildRolesFromGameVars(baseSnapshot, gameVars, mapState);
+  const map = buildMapFromTuanChatMapState(baseSnapshot, mapState);
+  const overlayVisible = mapState.visible;
   const visible = combatVisible || overlayVisible;
   const currentActorRoleId = resolveCurrentActorRoleId(combatVisible, roles, baseSnapshot.currentActorRoleId);
   const currentActorName = currentActorRoleId != null
@@ -418,9 +365,9 @@ function postReadyMessage(): void {
 }
 
 export const TuanChatBattleOverlay: FC = () => {
-  const gameVars = useStageState().GameVar;
+  const stageState = useStageState();
   const [baseSnapshot, setBaseSnapshot] = useState<BattleOverlaySnapshot>(EMPTY_SNAPSHOT);
-  const snapshot = useMemo(() => buildSnapshotFromGameVars(baseSnapshot, gameVars), [baseSnapshot, gameVars]);
+  const snapshot = useMemo(() => buildSnapshotFromStageState(baseSnapshot, stageState), [baseSnapshot, stageState]);
   const map = snapshot.visible ? snapshot.map : null;
 
   useEffect(() => {

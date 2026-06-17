@@ -212,6 +212,38 @@ export interface IDicePerformState {
   revision: number;
 }
 
+export interface ITuanChatMapTokenState {
+  roleId: number;
+  rowIndex: number;
+  colIndex: number;
+  name: string;
+  avatarUrl: string;
+}
+
+export interface ITuanChatMapState {
+  visible: boolean;
+  configActive: boolean;
+  imageUrl: string;
+  gridRows: number;
+  gridCols: number;
+  gridColor: string;
+  tokens: ITuanChatMapTokenState[];
+  revision: number;
+}
+
+export function createInitialTuanChatMapState(): ITuanChatMapState {
+  return {
+    visible: false,
+    configActive: false,
+    imageUrl: '',
+    gridRows: 10,
+    gridCols: 10,
+    gridColor: '#808080',
+    tokens: [],
+    revision: 0,
+  };
+}
+
 /**
  * @interface IStageState 游戏舞台数据接口
  */
@@ -262,6 +294,7 @@ export interface IStageState {
   replacedUIlable: Record<string, string>;
   figureMetaData: figureMetaData;
   dicePerform: IDicePerformState;
+  tuanChatMap: ITuanChatMapState;
 }
 
 /**

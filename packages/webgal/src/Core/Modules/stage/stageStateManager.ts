@@ -5,6 +5,7 @@ import { STAGE_KEYS } from '@/Core/constants';
 import { baseBlinkParam, baseFocusParam } from '@/Core/live2DCore';
 import {
   baseTransform,
+  createInitialTuanChatMapState,
   IEffect,
   IFigureMetadata,
   IFreeFigure,
@@ -84,6 +85,7 @@ export const initState: IStageState = {
     content: '',
     revision: 0,
   },
+  tuanChatMap: createInitialTuanChatMapState(),
 };
 
 /**

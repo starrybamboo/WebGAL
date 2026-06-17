@@ -267,6 +267,35 @@ test("changeBg with animation parameters", async () => {
   expect(result.sentenceList).toContainEqual(expectSentenceItem);
 });
 
+test("tuanChatMap scans map background and token avatar assets", async () => {
+  const parser = new SceneParser((assetList) => {
+  }, (fileName, assetType) => {
+    return `asset:${assetType}:${fileName}`;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse([
+    `tuanChatMap:config -background=map_12.webp -rows=10 -cols=12 -gridColor=#808080 -clearTokens;`,
+    `tuanChatMap:token -roleId=14562 -row=6 -col=2 -avatar=token_role_14562.webp;`,
+  ].join('\n'), 'test', 'test');
+  const configSentence = result.sentenceList.find(item => item.command === commandType.tuanChatMap && item.content === 'config');
+  const tokenSentence = result.sentenceList.find(item => item.command === commandType.tuanChatMap && item.content === 'token');
+
+  expect(configSentence?.args).toEqual([
+    { key: 'next', value: true },
+    { key: 'background', value: 'map_12.webp' },
+    { key: 'rows', value: 10 },
+    { key: 'cols', value: 12 },
+    { key: 'gridColor', value: '#808080' },
+    { key: 'clearTokens', value: true }
+  ]);
+  expect(configSentence?.sentenceAssets).toEqual([
+    { name: 'map_12.webp', url: `asset:${fileType.background}:map_12.webp`, type: fileType.background, lineNumber: 0 }
+  ]);
+  expect(tokenSentence?.sentenceAssets).toEqual([
+    { name: 'token_role_14562.webp', url: `asset:${fileType.figure}:token_role_14562.webp`, type: fileType.figure, lineNumber: 1 }
+  ]);
+});
+
 test("inline comment is preserved on normal statement", async () => {
   const parser = new SceneParser((assetList) => {
   }, (fileName, assetType) => {

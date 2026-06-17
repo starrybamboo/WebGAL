@@ -5,6 +5,7 @@
 
 import {
   baseTransform,
+  createInitialTuanChatMapState,
   IEffect,
   IFigureMetadata,
   IFreeFigure,
@@ -80,6 +81,7 @@ export const initState: IStageState = {
     content: '',
     revision: 0,
   },
+  tuanChatMap: createInitialTuanChatMapState(),
 };
 
 /**
