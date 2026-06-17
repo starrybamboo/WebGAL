@@ -5,9 +5,11 @@ import {
   TUANCHAT_COMBAT_ACTIVE_VAR,
   TUANCHAT_COMBAT_TURN_VAR,
   TUANCHAT_MAP_BACKGROUND_VAR,
+  TUANCHAT_MAP_CONFIG_ACTIVE_VAR,
   TUANCHAT_MAP_GRID_COLS_VAR,
   TUANCHAT_MAP_GRID_COLOR_VAR,
   TUANCHAT_MAP_GRID_ROWS_VAR,
+  TUANCHAT_MAP_OVERLAY_ACTIVE_VAR,
   TUANCHAT_ROLE_AVATAR_URL_KEY,
   TUANCHAT_ROLE_IDS_VAR,
 } from '@/Core/util/tuanChatGameVars';
@@ -308,17 +310,20 @@ function resolveMapBackgroundImageUrl(rawBackground: string): string {
   return assetSetter(background, fileType.background);
 }
 
-function buildMapFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: GameVars): BattleOverlayMapSnapshot | null {
+function buildMapFromGameVars(
+  baseSnapshot: BattleOverlaySnapshot,
+  gameVars: GameVars,
+): BattleOverlayMapSnapshot | null {
   const baseMap = baseSnapshot.map;
   const hasBackgroundVar = Object.prototype.hasOwnProperty.call(gameVars, TUANCHAT_MAP_BACKGROUND_VAR);
   const background = readGameVarString(gameVars, TUANCHAT_MAP_BACKGROUND_VAR);
-  // 场景初始化会写入空 background；预览模式下不能因此抹掉宿主同步来的房间地图。
-  if (hasBackgroundVar && !background && !baseMap) {
-    return null;
-  }
-  const imageUrl = hasBackgroundVar
-    ? (background ? resolveMapBackgroundImageUrl(background) : baseMap?.imageUrl ?? '')
-    : baseMap?.imageUrl ?? '';
+  const mapConfigActive = readGameVarBoolean(gameVars, TUANCHAT_MAP_CONFIG_ACTIVE_VAR);
+  const hasExplicitMapConfig = mapConfigActive != null;
+  const isExplicitMapClear = mapConfigActive === false && hasBackgroundVar && !background;
+  // 初始化会写入空 background；只有 map.config.active=false 才代表真正清图。
+  const imageUrl = background
+    ? resolveMapBackgroundImageUrl(background)
+    : (isExplicitMapClear ? '' : baseMap?.imageUrl ?? '');
   const gridRows = readGameVarNumber(gameVars, TUANCHAT_MAP_GRID_ROWS_VAR) ?? baseMap?.gridRows ?? 10;
   const gridCols = readGameVarNumber(gameVars, TUANCHAT_MAP_GRID_COLS_VAR) ?? baseMap?.gridCols ?? 10;
   const gridColor = normalizeGridColor(readGameVarString(gameVars, TUANCHAT_MAP_GRID_COLOR_VAR) || baseMap?.gridColor || DEFAULT_GRID_COLOR);
@@ -348,7 +353,7 @@ function buildMapFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: Gam
         .filter((token): token is BattleOverlayMapTokenSnapshot => Boolean(token))
     : baseMap?.tokens ?? [];
 
-  if (!imageUrl && !baseMap && tokens.length === 0) {
+  if (!imageUrl && !baseMap && tokens.length === 0 && !hasExplicitMapConfig) {
     return null;
   }
   return {
@@ -362,9 +367,10 @@ function buildMapFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: Gam
 
 function buildSnapshotFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: GameVars): BattleOverlaySnapshot {
   const combatVisible = readGameVarBoolean(gameVars, TUANCHAT_COMBAT_ACTIVE_VAR) ?? (baseSnapshot.round != null);
+  const overlayVisible = readGameVarBoolean(gameVars, TUANCHAT_MAP_OVERLAY_ACTIVE_VAR) ?? false;
   const roles = buildRolesFromGameVars(baseSnapshot, gameVars);
   const map = buildMapFromGameVars(baseSnapshot, gameVars);
-  const visible = combatVisible || map !== null;
+  const visible = combatVisible || overlayVisible;
   const currentActorRoleId = resolveCurrentActorRoleId(combatVisible, roles, baseSnapshot.currentActorRoleId);
   const currentActorName = currentActorRoleId != null
     ? roles.find(role => role.roleId === currentActorRoleId)?.name ?? ''
