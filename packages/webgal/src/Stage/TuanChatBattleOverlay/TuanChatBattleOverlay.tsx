@@ -361,7 +361,7 @@ function buildMapFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: Gam
 }
 
 function buildSnapshotFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: GameVars): BattleOverlaySnapshot {
-  const combatVisible = readGameVarBoolean(gameVars, TUANCHAT_COMBAT_ACTIVE_VAR) ?? baseSnapshot.visible;
+  const combatVisible = readGameVarBoolean(gameVars, TUANCHAT_COMBAT_ACTIVE_VAR) ?? (baseSnapshot.round != null);
   const roles = buildRolesFromGameVars(baseSnapshot, gameVars);
   const map = buildMapFromGameVars(baseSnapshot, gameVars);
   const visible = combatVisible || map !== null;
