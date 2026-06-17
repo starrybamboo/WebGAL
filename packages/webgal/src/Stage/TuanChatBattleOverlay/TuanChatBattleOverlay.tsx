@@ -312,11 +312,12 @@ function buildMapFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: Gam
   const baseMap = baseSnapshot.map;
   const hasBackgroundVar = Object.prototype.hasOwnProperty.call(gameVars, TUANCHAT_MAP_BACKGROUND_VAR);
   const background = readGameVarString(gameVars, TUANCHAT_MAP_BACKGROUND_VAR);
-  if (hasBackgroundVar && !background) {
+  // 场景初始化会写入空 background；预览模式下不能因此抹掉宿主同步来的房间地图。
+  if (hasBackgroundVar && !background && !baseMap) {
     return null;
   }
   const imageUrl = hasBackgroundVar
-    ? resolveMapBackgroundImageUrl(background)
+    ? (background ? resolveMapBackgroundImageUrl(background) : baseMap?.imageUrl ?? '')
     : baseMap?.imageUrl ?? '';
   const gridRows = readGameVarNumber(gameVars, TUANCHAT_MAP_GRID_ROWS_VAR) ?? baseMap?.gridRows ?? 10;
   const gridCols = readGameVarNumber(gameVars, TUANCHAT_MAP_GRID_COLS_VAR) ?? baseMap?.gridCols ?? 10;
@@ -360,19 +361,21 @@ function buildMapFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: Gam
 }
 
 function buildSnapshotFromGameVars(baseSnapshot: BattleOverlaySnapshot, gameVars: GameVars): BattleOverlaySnapshot {
-  const visible = readGameVarBoolean(gameVars, TUANCHAT_COMBAT_ACTIVE_VAR) ?? baseSnapshot.visible;
+  const combatVisible = readGameVarBoolean(gameVars, TUANCHAT_COMBAT_ACTIVE_VAR) ?? baseSnapshot.visible;
   const roles = buildRolesFromGameVars(baseSnapshot, gameVars);
-  const currentActorRoleId = resolveCurrentActorRoleId(visible, roles, baseSnapshot.currentActorRoleId);
+  const map = buildMapFromGameVars(baseSnapshot, gameVars);
+  const visible = combatVisible || map !== null;
+  const currentActorRoleId = resolveCurrentActorRoleId(combatVisible, roles, baseSnapshot.currentActorRoleId);
   const currentActorName = currentActorRoleId != null
     ? roles.find(role => role.roleId === currentActorRoleId)?.name ?? ''
     : '';
   return {
     ...baseSnapshot,
     visible,
-    round: visible ? readGameVarNumber(gameVars, TUANCHAT_COMBAT_TURN_VAR) ?? baseSnapshot.round : null,
+    round: combatVisible ? readGameVarNumber(gameVars, TUANCHAT_COMBAT_TURN_VAR) ?? baseSnapshot.round : null,
     currentActorRoleId,
     currentActorName,
-    map: buildMapFromGameVars(baseSnapshot, gameVars),
+    map,
     roles: visible ? roles.map(role => ({
       ...role,
       isCurrentActor: role.roleId === currentActorRoleId,
