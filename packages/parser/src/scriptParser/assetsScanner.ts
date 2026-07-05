@@ -1,6 +1,8 @@
 import { arg, commandType, IAsset } from '../interface/sceneInterface';
 import { fileType } from '../interface/assets';
 
+type AssetSetter = (fileName: string, assetType: fileType) => string;
+
 /**
  * 根据语句类型、语句内容、参数列表，扫描该语句可能携带的资源
  * @param command 语句类型
@@ -13,6 +15,7 @@ export const assetsScanner = (
   content: string,
   args: Array<arg>,
   lineNumber: number,
+  assetSetter?: AssetSetter,
 ): Array<IAsset> => {
   let hasVocalArg = false;
   const returnAssetsList: Array<IAsset> = [];
