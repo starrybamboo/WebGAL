@@ -9,6 +9,7 @@ import { WebGAL } from '@/Core/WebGAL';
 import { applyAnimationEndState, getAnimateDuration } from '../Modules/animationFunctions';
 import { v4 as uuid } from 'uuid';
 import { generateTimelineObj } from '@/Core/controller/stage/pixi/animations/timeline';
+import { parseSetTransformFrame } from './parseTransformFrame';
 /**
  * 设置变换
  * @param sentence
@@ -24,26 +25,24 @@ export const setTransform = (sentence: ISentence): IPerform => {
   const target = getStringArgByKey(sentence, 'target') ?? '0';
   const keep = getBooleanArgByKey(sentence, 'keep') ?? false;
   const parallel = getBooleanArgByKey(sentence, 'parallel') ?? false;
+  const writeFullEffect = !parallel && !(getBooleanArgByKey(sentence, 'ignoreDefault') ?? false);
 
   const performInitName = `animation-${target}`;
   const performName = parallel ? `${performInitName}#${animationName}` : performInitName;
 
   if (!parallel) WebGAL.gameplay.performController.unmountPerform(performInitName, true);
 
-  try {
-    const frame = JSON.parse(animationString) as AnimationFrame;
-    // 保持 writeDefault 的旧语义；是否写完整字段由 parallel 单独控制
-    animationObj = generateTransformAnimationObj(target, frame, duration, ease, !parallel);
-    console.log('animationObj:', animationObj);
-  } catch (e) {
-    // 解析都错误了，歇逼吧
+  const frame = parseSetTransformFrame(animationString);
+  if (frame) {
+    animationObj = generateTransformAnimationObj(target, frame, duration, ease, writeFullEffect);
+  } else {
     animationObj = [];
   }
 
   const newAnimation: IUserAnimation = { name: animationName, effects: animationObj };
   WebGAL.animationManager.addAnimation(newAnimation);
   const animationDuration = getAnimateDuration(animationName);
-  const animationTimeline = applyAnimationEndState(animationName, target, writeDefault, !parallel);
+  const animationTimeline = applyAnimationEndState(animationName, target, writeDefault, writeFullEffect);
   const key = `${target}-${animationName}-${animationDuration}`;
   let keepAnimationStopped = false;
   const startFunction = () => {

@@ -40,7 +40,7 @@ export const scriptParser = (
   const commentSplit = sentenceRaw.split(/(?<!\\);/);
   let newSentenceRaw = commentSplit[0];
   newSentenceRaw = newSentenceRaw.replaceAll('\\;',';');
-  const sentenceComment = commentSplit[1] ?? '';
+  const sentenceComment = commentSplit.slice(1).join(';');
   if (newSentenceRaw.trim() === '') {
     // 注释提前返回
     return {
@@ -106,7 +106,7 @@ export const scriptParser = (
   }
 
   content = contentParser(newSentenceRaw.trim(), command, assetSetter); // 将语句内容里的文件名转为相对或绝对路径
-  sentenceAssets = assetsScanner(command, content, args, lineNumber, assetSetter); // 扫描语句携带资源
+  sentenceAssets = assetsScanner(command, content, args, lineNumber); // 扫描语句携带资源
   subScene = subSceneScanner(command, content); // 扫描语句携带子场景
   return {
     command: command, // 语句类型

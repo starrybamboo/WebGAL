@@ -159,14 +159,6 @@ yarn webgal:build
 然后同步 Terre：
 
 ```powershell
-$source = (Resolve-Path 'D:\A_collection\WebGAL\packages\webgal\dist').Path
-$targetRoot = (Resolve-Path 'D:\A_collection\WebGAL_Terre\packages\terre2\node_modules\webgal-engine').Path
-$target = Join-Path $targetRoot 'dist'
-$targetFull = [System.IO.Path]::GetFullPath($target)
-if (-not $targetFull.StartsWith($targetRoot, [System.StringComparison]::OrdinalIgnoreCase)) { throw "target escapes root: $targetFull" }
-if (-not (Test-Path (Join-Path $source 'index.html'))) { throw "source dist missing index.html: $source" }
-if (Test-Path -LiteralPath $targetFull) { Remove-Item -LiteralPath $targetFull -Recurse -Force }
-Copy-Item -LiteralPath $source -Destination $targetFull -Recurse -Force
 cd D:\A_collection\WebGAL_Terre\packages\terre2
 yarn update-engine
 ```

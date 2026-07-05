@@ -29,3 +29,4 @@ function getValidBgImage(url: string): string {
     return `url("${url}")`;
   }
 }
+

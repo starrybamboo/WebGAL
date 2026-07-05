@@ -1,5 +1,6 @@
 import { ISentence } from '@/Core/controller/scene/sceneInterface';
 import { BlinkParam, FocusParam } from '@/Core/live2DCore';
+import type { Transform } from '@/types/editorPreviewProtocol';
 
 /**
  * 游戏内变量
@@ -24,49 +25,7 @@ export interface IChooseItem {
   isSubScene: boolean; // 是否是子场景调用
 }
 
-export interface ITransform {
-  alpha?: number;
-  scale?: {
-    x?: number;
-    y?: number;
-  };
-  // pivot: {
-  //   x: number;
-  //   y: number;
-  // };
-  position?: {
-    x?: number;
-    y?: number;
-  };
-  rotation?: number;
-  blur?: number;
-  brightness?: number;
-  contrast?: number;
-  saturation?: number;
-  gamma?: number;
-  colorRed?: number;
-  colorGreen?: number;
-  colorBlue?: number;
-  bevel?: number;
-  bevelThickness?: number;
-  bevelRotation?: number;
-  bevelSoftness?: number;
-  bevelRed?: number;
-  bevelGreen?: number;
-  bevelBlue?: number;
-  bloom?: number;
-  bloomBrightness?: number;
-  bloomBlur?: number;
-  bloomThreshold?: number;
-  oldFilm?: number;
-  dotFilm?: number;
-  reflectionFilm?: number;
-  glitchFilm?: number;
-  rgbFilm?: number;
-  godrayFilm?: number;
-  shockwaveFilter?: number;
-  radiusAlphaFilter?: number;
-}
+export type ITransform = Transform;
 
 /**
  * 基本效果接口
@@ -83,6 +42,8 @@ export interface IStageAnimationSetting {
   exitAnimationName?: string;
   enterDuration?: number;
   exitDuration?: number;
+  enterAnimationIgnoreDefault?: boolean;
+  exitAnimationIgnoreDefault?: boolean;
   enterKeepOffset?: boolean;
   exitKeepOffset?: boolean;
   baseTransform?: ITransform;
@@ -105,10 +66,6 @@ export const baseTransform: ITransform = {
     x: 1,
     y: 1,
   },
-  // pivot: {
-  //   x: 0.5,
-  //   y: 0.5,
-  // },
   position: {
     x: 0,
     y: 0,
@@ -212,16 +169,29 @@ export interface IDicePerformState {
   revision: number;
 }
 
+export interface ITuanChatMapMoveSegment {
+  fromRowIndex: number;
+  fromColIndex: number;
+  toRowIndex: number;
+  toColIndex: number;
+  revision: number;
+}
+
 export interface ITuanChatMapTokenState {
   roleId: number;
   rowIndex: number;
   colIndex: number;
+  previousRowIndex?: number;
+  previousColIndex?: number;
+  moveRevision?: number;
+  moveSegments?: ITuanChatMapMoveSegment[];
   name: string;
   avatarUrl: string;
 }
 
 export interface ITuanChatMapState {
   visible: boolean;
+  pendingMoveOnShow: boolean;
   configActive: boolean;
   imageUrl: string;
   gridRows: number;
@@ -234,6 +204,7 @@ export interface ITuanChatMapState {
 export function createInitialTuanChatMapState(): ITuanChatMapState {
   return {
     visible: false,
+    pendingMoveOnShow: false,
     configActive: false,
     imageUrl: '',
     gridRows: 10,
@@ -243,7 +214,6 @@ export function createInitialTuanChatMapState(): ITuanChatMapState {
     revision: 0,
   };
 }
-
 /**
  * @interface IStageState 游戏舞台数据接口
  */

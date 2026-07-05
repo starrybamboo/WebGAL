@@ -16,7 +16,6 @@ export default [
       },
     plugins: [
       resolve(), commonjs(), typescript({
-        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
@@ -37,7 +36,6 @@ export default [
     ],
     plugins: [
       resolve(), commonjs(), typescript({
-        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {
@@ -55,12 +53,12 @@ export default [
         file: "./build/umd/index.global.js",
         name: 'webgalParser',
         format: 'iife',
+        exports: "named",
         sourcemap: !isProd
       },
     ],
     plugins: [
       resolve(), commonjs(), typescript({
-        clean: true,
         useTsconfigDeclarationDir: true,
         tsconfigOverride: {
           compilerOptions: {

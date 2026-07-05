@@ -1,109 +1,121 @@
 ## 发布日志
 
-**本仓库只发布源代码**
+**本仓库发布源代码，并在 Release 中附带 WebGAL 引擎网页版压缩包。**
 
-**如果你想要体验使用便捷的图形化编辑器创建、制作并实时预览 WebGAL 游戏，请 [下载 WebGAL 图形化编辑器](https://github.com/OpenWebGAL/WebGAL_Terre/releases)**
+**如果你想要体验使用便捷的图形化编辑器创建、制作并实时预览 WebGAL 游戏，请 [下载 WebGAL 图形化编辑器](https://github.com/OpenWebGAL/WebGAL_Terre/releases)。**
 
 ### 在此版本中
 
 #### 新功能
 
-getUserInput 支持正则校验参数 rule / ruleFlag / ruleText / ruleButtonText，可在输入不匹配时弹窗提示，ruleText 中可用 $0 引用用户输入值
+新增流程图功能。玩家可以在菜单或底部控制栏查看已解锁的剧情节点，并跳转回已解锁的场景。
 
-changeFigure 支持 skin 参数，可切换 Spine 模型皮肤
+流程图支持多条线路、节点解锁记录和未解锁节点显示控制，重置游戏数据时会一并清理流程图进度。
 
-setTransform 新增 oldFilm / dotFilm / reflectionFilm / glitchFilm / rgbFilm / godrayFilm 滤镜属性
+优化编辑器实时预览。调整背景、立绘、Spine、Live2D 和特效时，预览定位与实际画面更一致，快速切换预览目标时同步结果更稳定。
 
-添加引擎描述文件 webgal-engine.json 及版本自动同步机制
-
-标题按钮文字支持多层渲染（outer / inner），方便模板自定义描边与阴影效果
-
-内置默认字体更换为「资源圆体」(Resource Han Rounded)
+优化读档、回到流程图节点和自动继续时的画面与声音恢复，减少状态不一致。
 
 #### 修复
 
-修复 removeAnimationByTargetKey 无法移除同一目标上多个动画的问题
+修复打开 Backlog 后自动播放仍可能继续推进的问题。
 
-修复 setEffect 前未先移除旧动画导致效果叠加异常的问题
+修复播放 Backlog 语音时，多个回想语音或当前游戏语音可能同时播放的问题。
 
-修复自动播放与快进按钮状态在部分操作后与实际状态不同步的问题
+修复视频播放失败时流程可能卡住，以及 skipOff 视频仍可被双击跳过的问题。
 
-修复 Safari / iOS 下视口大小与缩放异常的问题
+修复 next 连续执行中接场景跳转时，后续流程可能失效的问题。
 
-重构 Service Worker，采用 cache-first 策略缓存游戏关键资源，修复旧缓存逻辑缺陷
+修复场景跳转目标异常时可能加载无效场景文件的问题。
 
-修复标题界面样式与布局问题
+修复 bgm:none 无法正确停止背景音乐的问题。
+
+修复 changeBg / changeFigure / setTransform 的变换参数为空或格式异常时，动画表现可能不正确的问题。
+
+修复自定义文本框模板中的已读文本样式部分不生效的问题。
+
+修复脚本注释包含多个分号时后续内容丢失的问题。
+
+修复资源预加载可能重复处理同一资源，或包含无效空路径资源的问题。
 
 <!-- English Translation -->
 ## Release Notes
 
-**Only source code is released in this repository**
+**This repository releases source code and includes a WebGAL engine web package in each Release.**
 
-**If you want to experience creating, making, and real-time previewing WebGAL games using a user-friendly graphical editor, please [download the WebGAL graphical editor](https://github.com/OpenWebGAL/WebGAL_Terre/releases)**
+**If you want to create, edit, and preview WebGAL games with a graphical editor, please [download the WebGAL graphical editor](https://github.com/OpenWebGAL/WebGAL_Terre/releases).**
 
 ### In this version
 
 #### New Features
 
-getUserInput now supports regex validation via rule / ruleFlag / ruleText / ruleButtonText arguments, showing a dialog when input does not match; ruleText supports $0 to reference the user's input value
+Added the flowchart feature. Players can view unlocked story nodes from the menu or bottom control panel and jump back to unlocked scenes.
 
-changeFigure now supports a skin argument for switching Spine model skins
+Flowcharts support multiple routes, node unlock progress, and locked-node visibility controls; resetting game data now also clears flowchart progress.
 
-setTransform adds new filter properties: oldFilm / dotFilm / reflectionFilm / glitchFilm / rgbFilm / godrayFilm
+Improved editor live preview. When adjusting backgrounds, figures, Spine, Live2D, and effects, preview positioning is closer to the actual screen, and synchronization is more stable when switching preview targets quickly.
 
-Added engine description file webgal-engine.json and automatic version synchronization mechanism
-
-Title button text now supports layered rendering (outer / inner) for easier template customization of strokes and shadows
-
-Default built-in font changed to Resource Han Rounded (资源圆体)
+Improved screen and audio restoration after loading saves, returning to flowchart nodes, or continuing automatically, reducing state mismatches.
 
 #### Fixes
 
-Fixed removeAnimationByTargetKey not removing all animations sharing the same target key
+Fixed autoplay possibly continuing after opening the Backlog.
 
-Fixed old animations not being removed before setEffect, causing effects to stack incorrectly
+Fixed multiple backlog voices, or backlog voice and current game voice, playing at the same time.
 
-Fixed auto-play and fast-forward button states becoming out of sync with actual state after certain operations
+Fixed video playback failures possibly blocking progress, and fixed skipOff videos still being skippable by double-clicking.
 
-Fixed viewport sizing and scaling issues on Safari / iOS
+Fixed follow-up flow possibly failing when a next chain leads into a scene jump.
 
-Refactored Service Worker with a cache-first strategy for critical game assets, fixing legacy caching logic issues
+Fixed abnormal scene jump targets possibly loading invalid scene files.
 
-Fixed title screen style and layout issues
+Fixed bgm:none not stopping background music correctly.
+
+Fixed incorrect animation behavior when changeBg / changeFigure / setTransform receive empty or malformed transform arguments.
+
+Fixed some read-text styles in custom textbox templates not taking effect.
+
+Fixed script comments losing content after additional semicolons.
+
+Fixed resource preloading possibly processing the same resource repeatedly or including invalid empty resource paths.
 
 <!-- Japanese Translation -->
 ## リリースノート
 
-**このリポジトリはソースコードのみを公開しています**
+**このリポジトリではソースコードを公開し、Release には WebGAL エンジンの Web 版パッケージも同梱しています。**
 
-**もしあなたが使いやすいグラフィカルエディタでWebGALゲームを作成、制作、リアルタイムプレビューしたい場合は、[WebGALグラフィカルエディタをダウンロードしてください](https://github.com/OpenWebGAL/WebGAL_Terre/releases)**
+**グラフィカルエディターで WebGAL ゲームを作成、編集、リアルタイムプレビューしたい場合は、[WebGAL グラフィカルエディターをダウンロードしてください](https://github.com/OpenWebGAL/WebGAL_Terre/releases)。**
 
 ### このバージョンについて
 
 #### 新機能
 
-getUserInput で正規表現バリデーション引数 rule / ruleFlag / ruleText / ruleButtonText をサポートし、入力が一致しない場合にダイアログを表示できるようになりました。ruleText 内で $0 を使用してユーザー入力値を参照できます
+フローチャート機能を追加しました。プレイヤーはメニューまたは下部コントロールから解放済みのストーリーノードを確認し、解放済みのシーンへ戻れるようになります。
 
-changeFigure で skin 引数をサポートし、Spine モデルのスキンを切り替えられるようになりました
+フローチャートは複数ルート、ノード解放状態、未解放ノードの表示制御に対応しました。ゲームデータをリセットすると、フローチャートの進行状況も一緒に削除されます。
 
-setTransform に oldFilm / dotFilm / reflectionFilm / glitchFilm / rgbFilm / godrayFilm フィルター属性を追加しました
+エディターのリアルタイムプレビューを改善しました。背景、立ち絵、Spine、Live2D、エフェクトを調整する際、プレビュー上の位置が実際の画面により近くなり、プレビュー対象を素早く切り替えた時の同期も安定しました。
 
-エンジン記述ファイル webgal-engine.json およびバージョン自動同期メカニズムを追加しました
-
-タイトルボタンのテキストが多層レンダリング（outer / inner）に対応し、テンプレートでのストロークやシャドウのカスタマイズが容易になりました
-
-デフォルト内蔵フォントを「資源圓體」(Resource Han Rounded) に変更しました
+ロード、フローチャートノードへの復帰、自動継続時の画面と音声の復元を改善し、状態のずれを減らしました。
 
 #### 修正
 
-removeAnimationByTargetKey が同一ターゲット上の複数アニメーションを削除できない問題を修正しました
+バックログを開いた後もオート再生が進み続ける場合がある問題を修正しました。
 
-setEffect の前に旧アニメーションが削除されず、エフェクトが不正に重複する問題を修正しました
+バックログ音声が複数同時に再生されたり、ゲーム内の現在のボイスと重なって再生されたりする問題を修正しました。
 
-一部操作後に自動再生・早送りボタンの状態が実際の状態と同期しなくなる問題を修正しました
+動画の再生に失敗した時に進行が止まる場合がある問題と、skipOff の動画をダブルクリックでスキップできてしまう問題を修正しました。
 
-Safari / iOS でのビューポートサイズとスケーリングの異常を修正しました
+next の連続実行中にシーン移動が続くと、その後の進行が失敗する場合がある問題を修正しました。
 
-Service Worker をリファクタリングし、ゲームの重要なアセットに cache-first 戦略を採用、レガシーキャッシュロジックの不具合を修正しました
+異常なシーン移動先によって無効なシーンファイルが読み込まれる場合がある問題を修正しました。
 
-タイトル画面のスタイルとレイアウトの問題を修正しました
+bgm:none で BGM が正しく停止しない問題を修正しました。
+
+changeBg / changeFigure / setTransform の変換引数が空、または不正な形式の場合に、アニメーション表示が正しくならない問題を修正しました。
+
+カスタムテキストボックステンプレートの既読テキストスタイルが一部反映されない問題を修正しました。
+
+スクリプトコメントに複数のセミコロンが含まれると、後続の内容が失われる問題を修正しました。
+
+リソースのプリロードで同じリソースが重複処理されたり、無効な空パスのリソースが含まれたりする問題を修正しました。

@@ -7,7 +7,7 @@ import { Options } from './Options/Options';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
 import { MenuPanelTag } from '@/store/guiInterface';
-import { isAllowFullSettingsEnabledFromGameVar } from '@/Core/util/allowFullSettings';
+import { Flowchart } from '@/UI/Flowchart/Flowchart';
 
 /**
  * Menu 页面，包括存读档、选项等
@@ -15,14 +15,9 @@ import { isAllowFullSettingsEnabledFromGameVar } from '@/Core/util/allowFullSett
  */
 const Menu: FC = () => {
   const GUIState = useSelector((state: RootState) => state.GUI);
-  const allowFullSettings = useSelector((state: RootState) =>
-    isAllowFullSettingsEnabledFromGameVar(state.userData.globalGameVar),
-  );
-  const currentMenuTag =
-    !allowFullSettings && GUIState.currentMenuTag === MenuPanelTag.Option ? MenuPanelTag.Load : GUIState.currentMenuTag;
   let currentTag;
   // let menuBgColor = 'linear-gradient(135deg, rgba(253,251,251,0.95) 0%, rgba(235,237,238,1) 100%)';
-  switch (currentMenuTag) {
+  switch (GUIState.currentMenuTag) {
     case MenuPanelTag.Save:
       currentTag = <Save />;
       // menuBgColor = 'linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)';
@@ -34,6 +29,9 @@ const Menu: FC = () => {
     case MenuPanelTag.Option:
       currentTag = <Options />;
       // menuBgColor = 'linear-gradient(135deg, #fdfbfb 0%, #ebedee 100%)';
+      break;
+    case MenuPanelTag.Flowchart:
+      currentTag = <Flowchart />;
       break;
   }
   return (

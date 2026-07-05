@@ -1,6 +1,6 @@
 import { ISentence } from '@/Core/controller/scene/sceneInterface';
 import { logger } from '@/Core/util/logger';
-import { getNumberArgByKey, getStringArgByKey } from '@/Core/util/getSentenceArg';
+import { getBooleanArgByKey, getNumberArgByKey, getStringArgByKey } from '@/Core/util/getSentenceArg';
 import { IStageState } from '@/Core/Modules/stage/stageInterface';
 import {
   audioContextWrapper,
@@ -13,7 +13,6 @@ import {
 } from '@/Core/gameScripts/vocal/vocalAnimation';
 import { WebGAL } from '@/Core/WebGAL';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
-import { resolveFigureTarget } from '@/Core/gameScripts/resolveFigureTarget';
 
 /**
  * 播放一段语音
@@ -30,11 +29,13 @@ export const playVocal = (sentence: ISentence) => {
   let currentStageState: IStageState;
   currentStageState = stageStateManager.getCalculationStageState();
 
-  let { key, pos } = resolveFigureTarget(sentence);
-  if (!pos) {
-    pos = 'center';
-  }
-  stageStateManager.setStage('speakingFigureKey', key);
+  let pos: 'center' | 'left' | 'right' = 'center';
+  const leftFromArgs = getBooleanArgByKey(sentence, 'left') ?? false;
+  const rightFromArgs = getBooleanArgByKey(sentence, 'right') ?? false;
+  if (leftFromArgs) pos = 'left';
+  if (rightFromArgs) pos = 'right';
+
+  let key = getStringArgByKey(sentence, 'figureId') ?? '';
 
   const freeFigure = currentStageState.freeFigure;
   const figureAssociatedAnimation = currentStageState.figureAssociatedAnimation;

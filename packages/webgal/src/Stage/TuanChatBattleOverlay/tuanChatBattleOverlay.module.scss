@@ -9,6 +9,34 @@
   pointer-events: none;
   color: #f8fafc;
   font-family: "Inter", "Noto Sans SC", system-ui, sans-serif;
+  opacity: 0;
+  transform: translate3d(24px, -16px, 0) scale(0.96);
+  transform-origin: top right;
+  transition:
+    opacity 220ms ease,
+    transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+  will-change: opacity, transform;
+}
+
+.overlayRootEntering {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  animation: map-enter 320ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.overlayRootVisible {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.overlayRootExiting {
+  opacity: 0;
+  transform: translate3d(32px, -20px, 0) scale(0.94);
+}
+
+.overlayRootHidden {
+  opacity: 0;
+  transform: translate3d(32px, -20px, 0) scale(0.94);
 }
 
 .mapFrame {
@@ -50,6 +78,11 @@
   background: #2563eb;
   box-shadow: 0 8px 20px rgb(0 0 0 / 36%);
   transform: translate(-50%, -50%);
+  will-change: left, top, transform;
+}
+
+.tokenMoving {
+  animation: token-move 420ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .tokenImage {
@@ -67,6 +100,36 @@
   height: 100%;
   font-size: 12px;
   font-weight: 800;
+}
+
+@keyframes map-enter {
+  0% {
+    opacity: 0;
+    transform: translate3d(30px, -20px, 0) scale(0.94);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes token-move {
+  0% {
+    left: var(--tc-token-move-from-left, 50%);
+    top: var(--tc-token-move-from-top, 50%);
+    transform: translate(-50%, -50%) scale(0.9);
+  }
+
+  65% {
+    transform: translate(-50%, -50%) scale(1.06);
+  }
+
+  100% {
+    left: var(--tc-token-move-to-left, 50%);
+    top: var(--tc-token-move-to-top, 50%);
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 @media (max-width: 720px) {

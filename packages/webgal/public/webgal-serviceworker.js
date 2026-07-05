@@ -29,7 +29,6 @@ self.addEventListener('activate', (event) => {
 function isHashedBuildAssetRequest(request) {
   if (request.method !== 'GET') return false;
   const url = new URL(request.url);
-  if (url.protocol !== 'http:' && url.protocol !== 'https:') return false;
   if (url.origin !== self.location.origin) return false;
   return HASHED_BUILD_ASSET_RE.test(url.pathname);
 }

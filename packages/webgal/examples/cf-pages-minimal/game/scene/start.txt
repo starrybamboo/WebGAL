@@ -1,2 +1,0 @@
-changeBg:none -next;
-say:欢迎来到 WebGAL 共享引擎示例页。;

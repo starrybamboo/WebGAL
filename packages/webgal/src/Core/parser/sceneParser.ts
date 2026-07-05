@@ -10,6 +10,8 @@ import { changeFigure } from '@/Core/gameScripts/changeFigure';
 import { changeSceneScript } from '@/Core/gameScripts/changeSceneScript';
 import { choose } from '@/Core/gameScripts/choose';
 import { comment } from '@/Core/gameScripts/comment';
+import { composeFigure } from '@/Core/gameScripts/composeFigure';
+import { tuanChatMap } from '@/Core/gameScripts/tuanChatMap';
 import { filmMode } from '@/Core/gameScripts/filmMode';
 import { getUserInput } from '@/Core/gameScripts/getUserInput';
 import { intro } from '@/Core/gameScripts/intro';
@@ -25,7 +27,6 @@ import { setTempAnimation } from '@/Core/gameScripts/setTempAnimation';
 import { setTextbox } from '@/Core/gameScripts/setTextbox';
 import { setTransform } from '@/Core/gameScripts/setTransform';
 import { setTransition } from '@/Core/gameScripts/setTransition';
-import { dicePerform } from '@/Core/gameScripts/dicePerform';
 import { unlockBgm } from '@/Core/gameScripts/unlockBgm';
 import { unlockCg } from '@/Core/gameScripts/unlockCg';
 import { callSteam } from '@/Core/gameScripts/callSteam';
@@ -38,7 +39,6 @@ import { showVars } from '../gameScripts/showVars';
 import { defineScripts, IConfigInterface, ScriptConfig, ScriptFunction, scriptRegistry } from './utils';
 import { applyStyle } from '@/Core/gameScripts/applyStyle';
 import { wait } from '@/Core/gameScripts/wait';
-import { tuanChatMap } from '@/Core/gameScripts/tuanChatMap';
 
 export const SCRIPT_TAG_MAP = defineScripts({
   say: ScriptConfig(commandType.say, say),
@@ -75,10 +75,9 @@ export const SCRIPT_TAG_MAP = defineScripts({
   getUserInput: ScriptConfig(commandType.getUserInput, getUserInput),
   applyStyle: ScriptConfig(commandType.applyStyle, applyStyle, { next: true }),
   wait: ScriptConfig(commandType.wait, wait),
-  dice: ScriptConfig(commandType.dice, dicePerform),
-  trpgDice: ScriptConfig(commandType.dice, dicePerform),
   callSteam: ScriptConfig(commandType.callSteam, callSteam, { next: true }),
-  tuanChatMap: ScriptConfig(commandType.tuanChatMap, tuanChatMap, { next: true }),
+  composeFigure: ScriptConfig(commandType.composeFigure, composeFigure, { next: true }),
+  tuanChatMap: ScriptConfig(commandType.tuanChatMap, tuanChatMap),
 });
 
 export const SCRIPT_CONFIG: IConfigInterface[] = Object.values(SCRIPT_TAG_MAP);

@@ -1,8 +1,15 @@
 import cloneDeep from 'lodash/cloneDeep';
 import { WebGAL } from '@/Core/WebGAL';
 import { initState, stageStateManager } from '@/Core/Modules/stage/stageStateManager';
+import { stopFast } from '@/Core/controller/gamePlay/fastSkip';
+import { clearComposedFigures } from '@/Core/gameScripts/composeFigure';
 
-export const resetStage = (resetBacklog: boolean, resetSceneAndVar = true) => {
+export interface ResetStageOptions {
+  commitStageState?: boolean;
+}
+
+export const resetStage = (resetBacklog: boolean, resetSceneAndVar = true, options: ResetStageOptions = {}) => {
+  const { commitStageState = true } = options;
   /**
    * 清空运行时
    */
@@ -16,14 +23,24 @@ export const resetStage = (resetBacklog: boolean, resetSceneAndVar = true) => {
 
   // 清空所有演出和timeOut
   WebGAL.gameplay.pixiStage?.removeAllAnimations();
+  stopFast();
   WebGAL.gameplay.performController.removeAllPerform();
   WebGAL.gameplay.resetGamePlay();
+  clearComposedFigures();
 
   // 清空舞台状态表
   const initSceneDataCopy = cloneDeep(initState);
   const currentVars = stageStateManager.getCalculationStageState().GameVar;
-  stageStateManager.resetAllStageState(initSceneDataCopy);
+  if (commitStageState) {
+    stageStateManager.resetAllStageState(initSceneDataCopy, { skipAnimation: true });
+  } else {
+    stageStateManager.resetCalculationStageState(initSceneDataCopy);
+  }
   if (!resetSceneAndVar) {
-    stageStateManager.setStageAndCommit('GameVar', currentVars);
+    if (commitStageState) {
+      stageStateManager.setStageAndCommit('GameVar', currentVars);
+    } else {
+      stageStateManager.setStage('GameVar', currentVars);
+    }
   }
 };

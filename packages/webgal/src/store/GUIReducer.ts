@@ -10,18 +10,15 @@ import {
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { DEFAULT_FONT_OPTIONS } from '@/Core/util/fonts/fontOptions';
 
-function isDirectStartEnabled() {
-  return typeof window !== 'undefined' && window.__TUANCHAT_WEBGAL__?.autoStart === true;
-}
-
 /**
  * 初始GUI状态表
  */
 const initState: IGuiState = {
   fontOptions: [...DEFAULT_FONT_OPTIONS],
   showBacklog: false,
-  showStarter: !isDirectStartEnabled(),
-  showTitle: !isDirectStartEnabled(),
+  showFlowchart: false,
+  showStarter: true,
+  showTitle: true,
   showMenuPanel: false,
   showTextBox: true,
   showControls: true,

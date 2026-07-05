@@ -9,8 +9,6 @@ import viteCompression from 'vite-plugin-compression';
 
 // @ts-ignore
 const env = process.env.NODE_ENV;
-const sharedEngineMode =
-  process.env.WEBGAL_BUILD_TARGET === 'shared-engine' || process.env.npm_lifecycle_event === 'build:shared-engine';
 console.log(env);
 
 export default defineConfig({
@@ -18,23 +16,12 @@ export default defineConfig({
     react(),
     loadVersion(),
     Info(),
-    !sharedEngineMode
-      ? viteCompression({
-          filter: /^(.*assets).*\.(js|css|ttf)$/,
-        })
-      : undefined,
+    viteCompression({
+      filter: /^(.*assets).*\.(js|css|ttf)$/,
+    }),
     // @ts-ignore
     // visualizer(),
   ],
-  css: sharedEngineMode
-    ? {
-        preprocessorOptions: {
-          scss: {
-            additionalData: '',
-          },
-        },
-      }
-    : undefined,
   resolve: {
     alias: {
       '@': resolve('src'),

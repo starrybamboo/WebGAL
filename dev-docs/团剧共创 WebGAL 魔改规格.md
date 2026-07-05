@@ -49,7 +49,7 @@ WebGAL 引擎负责解析和执行 TuanChat 生成的标准 WebGAL 脚本扩展�
 
 ### Terre 侧职责
 
-Terre 使用 `node_modules/webgal-engine/dist` 和 `assets/templates/WebGAL_Template` 中的引擎产物。修改 WebGAL 源码后必须构建并同步 Terre，否则预览可能仍运行旧引擎。
+Terre 使用 `D:\A_collection\WebGAL\packages\webgal\dist` 同步 `assets/templates/WebGAL_Template` 中的引擎产物。修改 WebGAL 源码后必须先构建 WebGAL，再在 Terre 执行同步脚本；不要从 `node_modules/webgal-engine` 取引擎文件。
 
 ## 脚本协议
 
@@ -215,6 +215,10 @@ TypingSoundEnabled=true|false
 TypingSoundInterval=<number>
 TypingSoundPunctuationPause=<ms>
 TypingSoundSe=<asset-path>
+Figure_Default_Enter_Duration=<ms>
+Figure_Default_Exit_Duration=<ms>
+Figure_Default_Enter_Animation=<animation-name>
+Figure_Default_Exit_Animation=<animation-name>
 ```
 
 要求：
@@ -224,6 +228,8 @@ TypingSoundSe=<asset-path>
 - `Enable_Speaker_Focus` 控制说话人聚焦，默认开启。
 - `Enable_Appreciation` 控制鉴赏模式入口。
 - 打字音配置应由 `IMSSTextbox` 读取并播放 UI 音效，间隔和标点停顿由配置控制。
+- `Figure_Default_Enter_Animation` / `Figure_Default_Exit_Animation` 控制未在单条脚本中显式指定 `-enter` / `-exit` 时的默认立绘进出场 JSON 动画名；配置为空或找不到动画时回退 TS 内置默认动画。团剧共创默认写入 `tuanchat/default-enter` / `tuanchat/default-exit`，对应 `game/animation/tuanchat/default-*.json`。
+- `Figure_Default_Enter_Duration` / `Figure_Default_Exit_Duration` 控制未配置默认 JSON 动画时的 fallback 立绘进出场时长；团剧共创默认写入入场 `0`、出场 `300`。
 
 ## 预览同步协议
 
@@ -313,14 +319,6 @@ yarn webgal:build
 然后同步 Terre：
 
 ```powershell
-$source = (Resolve-Path 'D:\A_collection\WebGAL\packages\webgal\dist').Path
-$targetRoot = (Resolve-Path 'D:\A_collection\WebGAL_Terre\packages\terre2\node_modules\webgal-engine').Path
-$target = Join-Path $targetRoot 'dist'
-$targetFull = [System.IO.Path]::GetFullPath($target)
-if (-not $targetFull.StartsWith($targetRoot, [System.StringComparison]::OrdinalIgnoreCase)) { throw "target escapes root: $targetFull" }
-if (-not (Test-Path (Join-Path $source 'index.html'))) { throw "source dist missing index.html: $source" }
-if (Test-Path -LiteralPath $targetFull) { Remove-Item -LiteralPath $targetFull -Recurse -Force }
-Copy-Item -LiteralPath $source -Destination $targetFull -Recurse -Force
 cd D:\A_collection\WebGAL_Terre\packages\terre2
 yarn update-engine
 ```
@@ -348,7 +346,7 @@ yarn update-engine
 
 ## 维护注意事项
 
-- 优先在 WebGAL 源码中修改，再构建并同步 Terre；不要只改 Terre 的 `node_modules/webgal-engine/dist` 作为长期方案。
+- 优先在 WebGAL 源码中修改，再构建并同步 Terre；同步脚本只应从本地 `D:\A_collection\WebGAL\packages\webgal\dist` 取引擎产物，不要使用 `node_modules/webgal-engine/dist`。
 - 不要把旧 4.5 逻辑整块回滚到 4.6；新增能力应接入 4.6 的 `stageStateManager` 和 Pixi sync 模型。
 - 与 TuanChat 脚本生成协议相关的行为变更，需要同步更新 TuanChat realtime renderer、测试和 realtime marker。
 - 当前仓库可能存在其他代理的 WIP；修改时只触碰本规格相关文件，避免回滚无关改动。

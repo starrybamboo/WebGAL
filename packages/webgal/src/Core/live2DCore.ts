@@ -34,19 +34,6 @@ export class Live2DCore {
   public SoundManager: any;
   public Config: any;
 
-  // 临时记录未初始化前的数据
-  // 旧版表情混合模式
-  private _legacyExpressionBlendMode = false;
-  public get legacyExpressionBlendMode() {
-    return this._legacyExpressionBlendMode;
-  }
-  public set legacyExpressionBlendMode(value: boolean) {
-    this._legacyExpressionBlendMode = value;
-    if (this.isAvailable) {
-      this.Config.legacyExpressionBlendMode = value;
-    }
-  }
-
   public constructor() {
     this.initLive2D();
   }
@@ -66,7 +53,6 @@ export class Live2DCore {
         this.Config = config;
         this.isAvailable = true;
         console.log('Live2D plugin load success');
-        this.initConfig();
       })
       .catch((error) => {
         this.isAvailable = false;
@@ -78,8 +64,4 @@ export class Live2DCore {
       });
   }
 
-  /** 初始化配置 */
-  private initConfig() {
-    this.Config.legacyExpressionBlendMode = this._legacyExpressionBlendMode;
-  }
 }

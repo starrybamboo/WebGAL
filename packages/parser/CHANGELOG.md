@@ -5,10 +5,9 @@
 ### Fixed
 - Fixed interface consistency between `webgal-parser` and main WebGAL project
 - Added missing trailing comma in `commandType` enum to match WebGAL main project
-- Updated `ISceneData` interface to use `ISceneEntry` instead of `sceneEntry` for better type consistency
+- Updated `ISceneData` interface to use `ISceneEntry` directly for better type consistency
 
 ### Added
-- Added `ISceneEntry` interface as compatibility alias for `sceneEntry`
 - Added comprehensive test cases for new animation parameters:
   - `wait` command testing
   - `changeFigure` with `duration`, `enter`, `exit` parameters

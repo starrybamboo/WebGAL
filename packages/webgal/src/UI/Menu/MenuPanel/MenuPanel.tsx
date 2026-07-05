@@ -1,6 +1,5 @@
 import styles from './menuPanel.module.scss';
 import { MenuPanelButton } from './MenuPanelButton';
-import { playBgm } from '@/Core/controller/stage/playBgm';
 import { MenuPanelTag } from '@/store/guiInterface';
 import { useDispatch, useSelector } from 'react-redux';
 import { RootState } from '@/store/store';
@@ -9,7 +8,6 @@ import { backToTitle } from '@/Core/controller/gamePlay/backToTitle';
 import useTrans from '@/hooks/useTrans';
 import useSoundEffect from '@/hooks/useSoundEffect';
 import { showGlogalDialog } from '@/UI/GlobalDialog/GlobalDialog';
-import { isAllowFullSettingsEnabledFromGameVar } from '@/Core/util/allowFullSettings';
 
 /**
  * Menu页的底栏
@@ -21,29 +19,45 @@ export const MenuPanel = () => {
 
   const { playSeClick, playSeDialogOpen, playSePageChange } = useSoundEffect();
   const GUIState = useSelector((state: RootState) => state.GUI);
-  const allowFullSettings = useSelector((state: RootState) =>
-    isAllowFullSettingsEnabledFromGameVar(state.userData.globalGameVar),
-  );
-  const currentMenuTag =
-    !allowFullSettings && GUIState.currentMenuTag === MenuPanelTag.Option ? MenuPanelTag.Load : GUIState.currentMenuTag;
+  const enableFlowchart = useSelector((state: RootState) => state.userData.globalGameVar.Enable_flowchart === true);
   const dispatch = useDispatch();
   // 设置Menu按钮的高亮
-  const SaveTagOn = currentMenuTag === MenuPanelTag.Save ? ` ${styles.MenuPanel_button_hl}` : ``;
-  const LoadTagOn = currentMenuTag === MenuPanelTag.Load ? ` ${styles.MenuPanel_button_hl}` : ``;
-  const OptionTagOn = currentMenuTag === MenuPanelTag.Option ? ` ${styles.MenuPanel_button_hl}` : ``;
+  const SaveTagOn = GUIState.currentMenuTag === MenuPanelTag.Save ? ` ${styles.MenuPanel_button_hl}` : ``;
+  const LoadTagOn = GUIState.currentMenuTag === MenuPanelTag.Load ? ` ${styles.MenuPanel_button_hl}` : ``;
+  const OptionTagOn = GUIState.currentMenuTag === MenuPanelTag.Option ? ` ${styles.MenuPanel_button_hl}` : ``;
+  const FlowchartTagOn = GUIState.currentMenuTag === MenuPanelTag.Flowchart ? ` ${styles.MenuPanel_button_hl}` : ``;
 
   // 设置Menu按钮的颜色
-  const SaveTagColor = currentMenuTag === MenuPanelTag.Save ? `rgba(74, 34, 93, 0.9)` : `rgba(123,144,169,1)`;
-  const LoadTagColor = currentMenuTag === MenuPanelTag.Load ? `rgba(11, 52, 110, 0.9)` : `rgba(123,144,169,1)`;
-  const OptionTagColor = currentMenuTag === MenuPanelTag.Option ? `rgba(81, 110, 65, 0.9)` : `rgba(123,144,169,1)`;
+  const SaveTagColor = GUIState.currentMenuTag === MenuPanelTag.Save ? `rgba(74, 34, 93, 0.9)` : `rgba(123,144,169,1)`;
+  const LoadTagColor = GUIState.currentMenuTag === MenuPanelTag.Load ? `rgba(11, 52, 110, 0.9)` : `rgba(123,144,169,1)`;
+  const OptionTagColor =
+    GUIState.currentMenuTag === MenuPanelTag.Option ? `rgba(81, 110, 65, 0.9)` : `rgba(123,144,169,1)`;
+  const FlowchartTagColor = GUIState.currentMenuTag === MenuPanelTag.Flowchart ? `#2B5F75` : `rgba(123,144,169,1)`;
 
   // 设置Menu图标的颜色
-  const SaveIconColor = currentMenuTag === MenuPanelTag.Save ? `rgba(74, 34, 93, 0.9)` : `rgba(123,144,169,1)`;
-  const LoadIconColor = currentMenuTag === MenuPanelTag.Load ? `rgba(11, 52, 110, 0.9)` : `rgba(123,144,169,1)`;
-  const OptionIconColor = currentMenuTag === MenuPanelTag.Option ? `rgba(81, 110, 65, 0.9)` : `rgba(123,144,169,1)`;
+  const SaveIconColor = GUIState.currentMenuTag === MenuPanelTag.Save ? `rgba(74, 34, 93, 0.9)` : `rgba(123,144,169,1)`;
+  const LoadIconColor =
+    GUIState.currentMenuTag === MenuPanelTag.Load ? `rgba(11, 52, 110, 0.9)` : `rgba(123,144,169,1)`;
+  const OptionIconColor =
+    GUIState.currentMenuTag === MenuPanelTag.Option ? `rgba(81, 110, 65, 0.9)` : `rgba(123,144,169,1)`;
+  const FlowchartIconColor = GUIState.currentMenuTag === MenuPanelTag.Flowchart ? `#2B5F75` : `rgba(123,144,169,1)`;
 
   return (
     <div className={styles.MenuPanel_main}>
+      {enableFlowchart && (
+        <MenuPanelButton
+          iconName="flowchart"
+          buttonOnClassName={FlowchartTagOn}
+          iconColor={FlowchartIconColor}
+          tagColor={FlowchartTagColor}
+          clickFunc={() => {
+            playSePageChange();
+            dispatch(setMenuPanelTag(MenuPanelTag.Flowchart));
+          }}
+          tagName={t('flowchart.title')}
+          key="flowchartButton"
+        />
+      )}
       <MenuPanelButton
         iconName="save"
         buttonOnClassName={SaveTagOn}
@@ -89,21 +103,19 @@ export const MenuPanel = () => {
         tagName={t('title.title')}
         key="titleIcon"
       />
-      {allowFullSettings && (
-        <MenuPanelButton
-          iconName="option"
-          style={{ marginLeft: 'auto' }}
-          buttonOnClassName={OptionTagOn}
-          iconColor={OptionIconColor}
-          tagColor={OptionTagColor}
-          clickFunc={() => {
-            playSePageChange();
-            dispatch(setMenuPanelTag(MenuPanelTag.Option));
-          }}
-          tagName={t('options.title')}
-          key="optionButton"
-        />
-      )}
+      <MenuPanelButton
+        iconName="option"
+        style={{ marginLeft: 'auto' }}
+        buttonOnClassName={OptionTagOn}
+        iconColor={OptionIconColor}
+        tagColor={OptionTagColor}
+        clickFunc={() => {
+          playSePageChange();
+          dispatch(setMenuPanelTag(MenuPanelTag.Option));
+        }}
+        tagName={t('options.title')}
+        key="optionButton"
+      />
 
       <MenuPanelButton
         iconName="exit"

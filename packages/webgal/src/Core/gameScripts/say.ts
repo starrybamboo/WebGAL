@@ -9,8 +9,8 @@ import { textSize, voiceOption } from '@/store/userDataInterface';
 import { WebGAL } from '@/Core/WebGAL';
 import { compileSentence } from '@/Stage/TextBox/TextBox';
 import { performMouthAnimation } from '@/Core/gameScripts/vocal/vocalAnimation';
+import { match } from '@/Core/util/match';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
-import { resolveFigurePositionByKey, resolveFigureTarget } from '@/Core/gameScripts/resolveFigureTarget';
 
 /**
  * 进行普通对话的显示
@@ -20,14 +20,6 @@ import { resolveFigurePositionByKey, resolveFigureTarget } from '@/Core/gameScri
 export const say = (sentence: ISentence): IPerform => {
   const stageState = stageStateManager.getCalculationStageState();
   const userDataState = webgalStore.getState().userData;
-  if (stageState.dicePerform?.visible) {
-    stageStateManager.setStage('dicePerform', {
-      ...stageState.dicePerform,
-      visible: false,
-      content: '',
-      revision: Date.now(),
-    });
-  }
   let dialogKey = Math.random().toString(); // 生成一个随机的key
   let dialogToShow = sentence.content; // 获取对话内容
   if (dialogToShow) {
@@ -50,6 +42,7 @@ export const say = (sentence: ISentence): IPerform => {
 
   // 设置文本显示
   stageStateManager.setStage('showText', dialogToShow);
+  WebGAL.flowchartManager.requestUnlockCurrentScene();
   stageStateManager.setStage('vocal', '');
 
   // 清除语音
@@ -95,17 +88,16 @@ export const say = (sentence: ISentence): IPerform => {
 
   // 模拟说话
   let performSimulateVocalTimeout: ReturnType<typeof setTimeout> | null = null;
-  let performSimulateVocalDelay = 0;
 
-  const resolvedFigureTarget = resolveFigureTarget(sentence);
-  // 只有当前句显式指定了发言目标时才应用角色聚焦；
-  // 没有 figureId / left / center / right 时，不再沿用上一句的 speakingFigureKey。
-  const speakingFigureKey = resolvedFigureTarget.key || '';
-  // 无语音的嘴型模拟保持引入聚焦前的规则：只响应当前句显式目标。
-  // 否则连续同名台词会平白追加一个未结束演出，导致推进时要多点一次。
-  const simulatedVocalTargetKey = resolvedFigureTarget.key || '';
-  const pos = resolvedFigureTarget.pos || resolveFigurePositionByKey(simulatedVocalTargetKey);
-  stageStateManager.setStage('speakingFigureKey', speakingFigureKey);
+  let pos: '' | 'center' | 'left' | 'right' = '';
+  const leftFromArgs = getBooleanArgByKey(sentence, 'left') ?? false;
+  const rightFromArgs = getBooleanArgByKey(sentence, 'right') ?? false;
+  const centerFromArgs = getBooleanArgByKey(sentence, 'center') ?? false;
+  if (leftFromArgs) pos = 'left';
+  if (rightFromArgs) pos = 'right';
+  if (centerFromArgs) pos = 'center';
+
+  let key = getStringArgByKey(sentence, 'figureId') ?? '';
 
   let audioLevel = 80;
   const performSimulateVocal = (end = false) => {
@@ -118,8 +110,8 @@ export const say = (sentence: ISentence): IPerform => {
     audioLevel = Math.max(15, Math.min(nextAudioLevel, 100));
     const currentStageState = stageStateManager.getCalculationStageState();
     const figureAssociatedAnimation = currentStageState.figureAssociatedAnimation;
-    const animationItem = figureAssociatedAnimation.find((tid) => tid.targetId === simulatedVocalTargetKey);
-    const targetKey = simulatedVocalTargetKey;
+    const animationItem = figureAssociatedAnimation.find((tid) => tid.targetId === key);
+    const targetKey = key ? key : `fig-${pos}`;
     if (end) {
       audioLevel = 0;
     }
@@ -138,10 +130,9 @@ export const say = (sentence: ISentence): IPerform => {
   // 播放一段语音
   if (vocal) {
     WebGAL.gameplay.performController.arrangeNewPerform(playVocal(sentence), sentence, false);
-  } else if (simulatedVocalTargetKey) {
-    performSimulateVocalDelay = len * 250;
   }
-  const shouldSimulateVocal = !vocal && simulatedVocalTargetKey !== '';
+  const shouldSimulateVocal = !vocal && (key !== '' || pos !== '');
+  const performSimulateVocalDelay = shouldSimulateVocal ? len * 250 : 0;
 
   const performInitName: string = getRandomPerformName();
   let endDelay = useTextAnimationDuration(userDataState.optionData.textSpeed) / 2;

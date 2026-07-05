@@ -1,6 +1,5 @@
 import { useEffect } from 'react';
 import { initializeScript } from '@/Core/initializeScript';
-import { startGame } from '@/Core/controller/gamePlay/startContinueGame';
 import Translation from '@/UI/Translation/Translation';
 import { Stage } from '@/Stage/Stage';
 import { BottomControlPanel } from '@/UI/BottomControlPanel/BottomControlPanel';
@@ -13,17 +12,10 @@ import Menu from '@/UI/Menu/Menu';
 import GlobalDialog from '@/UI/GlobalDialog/GlobalDialog';
 import PanicOverlay from '@/UI/PanicOverlay/PanicOverlay';
 import DevPanel from '@/UI/DevPanel/DevPanel';
-import { useDispatch } from 'react-redux';
-import { setVisibility } from '@/store/GUIReducer';
 
 export default function App() {
-  const dispatch = useDispatch();
   useEffect(() => {
     initializeScript();
-    if (window.__TUANCHAT_WEBGAL__?.autoStart) {
-      dispatch(setVisibility({ component: 'isEnterGame', visibility: true }));
-      startGame();
-    }
   }, []);
   return (
     <div className="App">

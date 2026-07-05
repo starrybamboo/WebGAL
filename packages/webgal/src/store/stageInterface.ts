@@ -209,16 +209,29 @@ export interface IDicePerformState {
   revision: number;
 }
 
+export interface ITuanChatMapMoveSegment {
+  fromRowIndex: number;
+  fromColIndex: number;
+  toRowIndex: number;
+  toColIndex: number;
+  revision: number;
+}
+
 export interface ITuanChatMapTokenState {
   roleId: number;
   rowIndex: number;
   colIndex: number;
+  previousRowIndex?: number;
+  previousColIndex?: number;
+  moveRevision?: number;
+  moveSegments?: ITuanChatMapMoveSegment[];
   name: string;
   avatarUrl: string;
 }
 
 export interface ITuanChatMapState {
   visible: boolean;
+  pendingMoveOnShow: boolean;
   configActive: boolean;
   imageUrl: string;
   gridRows: number;
@@ -231,6 +244,7 @@ export interface ITuanChatMapState {
 export function createInitialTuanChatMapState(): ITuanChatMapState {
   return {
     visible: false,
+    pendingMoveOnShow: false,
     configActive: false,
     imageUrl: '',
     gridRows: 10,

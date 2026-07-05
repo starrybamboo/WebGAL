@@ -1,6 +1,6 @@
 {
   "name": "@webgal/base",
-  "version": "4.5",
+  "version": "4.6.2",
   "description": "A brand new web Visual Novel engine.",
   "repository": "https://github.com/OpenWebGAL/WebGAL.git",
   "author": "Mahiru <Mahiru_@outlook.com>",
@@ -10,7 +10,6 @@
     "dev": "yarn parser:build && yarn webgal:dev",
     "webgal:dev": "cd packages/webgal && yarn dev",
     "webgal:build": "cd packages/webgal && yarn build",
-    "webgal:build:shared": "cd packages/webgal && yarn build:shared-engine",
     "parser:test": "cd packages/parser && yarn test",
     "parser:test-coverage": "cd packages/parser && yarn coverage",
     "parser:build": "cd packages/parser && yarn build",

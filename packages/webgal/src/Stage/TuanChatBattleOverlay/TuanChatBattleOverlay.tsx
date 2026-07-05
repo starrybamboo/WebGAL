@@ -1,4 +1,4 @@
-import React, { CSSProperties, FC, useEffect, useMemo, useState } from 'react';
+import React, { CSSProperties, FC, useEffect, useMemo, useRef, useState } from 'react';
 import {
   buildTuanChatRoleVarKey,
   TUANCHAT_COMBAT_ACTIVE_VAR,
@@ -7,6 +7,11 @@ import {
 } from '@/Core/util/tuanChatGameVars';
 import { useStageState } from '@/hooks/useStageState';
 import { createInitialTuanChatMapState, type IGameVar, type IStageState, type ITuanChatMapState } from '@/Core/Modules/stage/stageInterface';
+import {
+  TUANCHAT_MAP_ENTER_ANIMATION_MS,
+  TUANCHAT_MAP_EXIT_ANIMATION_MS,
+  TUANCHAT_TOKEN_MOVE_ANIMATION_MS,
+} from '@/Core/gameScripts/tuanChatMapTimings';
 import styles from './tuanChatBattleOverlay.module.scss';
 
 const TUANCHAT_BATTLE_OVERLAY_MESSAGE_TYPE = 'TUANCHAT_BATTLE_OVERLAY_SYNC';
@@ -32,8 +37,20 @@ type BattleOverlayMapTokenSnapshot = {
   roleId: number;
   rowIndex: number;
   colIndex: number;
+  previousRowIndex: number | null;
+  previousColIndex: number | null;
+  moveRevision: number;
+  moveSegments: BattleOverlayTokenMoveSegment[];
   name: string;
   avatarUrl: string;
+};
+
+type BattleOverlayTokenMoveSegment = {
+  fromRowIndex: number;
+  fromColIndex: number;
+  toRowIndex: number;
+  toColIndex: number;
+  revision: number;
 };
 
 type BattleOverlayMapSnapshot = {
@@ -54,6 +71,8 @@ type BattleOverlaySnapshot = {
   map: BattleOverlayMapSnapshot | null;
   roles: BattleOverlayRoleSnapshot[];
 };
+
+type MapPresenceState = 'hidden' | 'entering' | 'visible' | 'exiting';
 
 const EMPTY_SNAPSHOT: BattleOverlaySnapshot = {
   schemaVersion: TUANCHAT_BATTLE_OVERLAY_SCHEMA_VERSION,
@@ -99,6 +118,27 @@ function normalizeTokenName(roleId: number, name?: string): string {
   return trimmedName || `#${roleId}`;
 }
 
+function normalizeTokenMoveSegment(rawSegment: unknown): BattleOverlayTokenMoveSegment | null {
+  if (!isRecord(rawSegment)) {
+    return null;
+  }
+  const fromRowIndex = toNonNegativeInteger(rawSegment.fromRowIndex);
+  const fromColIndex = toNonNegativeInteger(rawSegment.fromColIndex);
+  const toRowIndex = toNonNegativeInteger(rawSegment.toRowIndex);
+  const toColIndex = toNonNegativeInteger(rawSegment.toColIndex);
+  const revision = toNonNegativeInteger(rawSegment.revision);
+  if (fromRowIndex == null || fromColIndex == null || toRowIndex == null || toColIndex == null || revision == null) {
+    return null;
+  }
+  return {
+    fromRowIndex,
+    fromColIndex,
+    toRowIndex,
+    toColIndex,
+    revision,
+  };
+}
+
 function normalizeRole(rawRole: unknown): BattleOverlayRoleSnapshot | null {
   if (!isRecord(rawRole)) {
     return null;
@@ -134,6 +174,12 @@ function normalizeMapToken(rawToken: unknown): BattleOverlayMapTokenSnapshot | n
     roleId,
     rowIndex,
     colIndex,
+    previousRowIndex: toNonNegativeInteger(rawToken.previousRowIndex),
+    previousColIndex: toNonNegativeInteger(rawToken.previousColIndex),
+    moveRevision: toNonNegativeInteger(rawToken.moveRevision) ?? 0,
+    moveSegments: (Array.isArray(rawToken.moveSegments) ? rawToken.moveSegments : [])
+      .map(normalizeTokenMoveSegment)
+      .filter((segment): segment is BattleOverlayTokenMoveSegment => Boolean(segment)),
     name: normalizeTokenName(roleId, toTrimmedString(rawToken.name)),
     avatarUrl: toTrimmedString(rawToken.avatarUrl),
   };
@@ -293,6 +339,10 @@ function buildMapFromTuanChatMapState(
       roleId: token.roleId,
       rowIndex: token.rowIndex,
       colIndex: token.colIndex,
+      previousRowIndex: token.previousRowIndex ?? null,
+      previousColIndex: token.previousColIndex ?? null,
+      moveRevision: token.moveRevision ?? 0,
+      moveSegments: token.moveSegments ?? [],
       name: token.name || baseRole?.name || normalizeTokenName(token.roleId),
       avatarUrl: token.avatarUrl || baseRole?.avatarUrl || '',
     };
@@ -347,11 +397,91 @@ function buildGridStyle(map: BattleOverlayMapSnapshot): CSSProperties {
   } as CSSProperties;
 }
 
-function buildTokenStyle(token: BattleOverlayMapTokenSnapshot, map: BattleOverlayMapSnapshot): CSSProperties {
+function buildTokenPositionPercent(rowIndex: number, colIndex: number, map: BattleOverlayMapSnapshot) {
   return {
-    left: `${((token.colIndex + 0.5) / map.gridCols) * 100}%`,
-    top: `${((token.rowIndex + 0.5) / map.gridRows) * 100}%`,
+    left: `${((colIndex + 0.5) / map.gridCols) * 100}%`,
+    top: `${((rowIndex + 0.5) / map.gridRows) * 100}%`,
   };
+}
+
+function buildTokenStyle(token: BattleOverlayMapTokenSnapshot, map: BattleOverlayMapSnapshot): CSSProperties {
+  const targetPosition = buildTokenPositionPercent(token.rowIndex, token.colIndex, map);
+  if (token.previousRowIndex == null || token.previousColIndex == null) {
+    return targetPosition;
+  }
+  const sourcePosition = buildTokenPositionPercent(token.previousRowIndex, token.previousColIndex, map);
+  return {
+    ...targetPosition,
+    '--tc-token-move-from-left': sourcePosition.left,
+    '--tc-token-move-from-top': sourcePosition.top,
+    '--tc-token-move-to-left': targetPosition.left,
+    '--tc-token-move-to-top': targetPosition.top,
+  } as CSSProperties;
+}
+
+function buildTokenMoveSegmentKey(token: BattleOverlayMapTokenSnapshot, segment: BattleOverlayTokenMoveSegment): string {
+  return `${token.roleId}:${segment.revision}`;
+}
+
+function getNextPendingTokenMoveSegment(
+  token: BattleOverlayMapTokenSnapshot,
+  playedMoveKeys: Set<string>,
+): BattleOverlayTokenMoveSegment | null {
+  return token.moveSegments.find(segment => !playedMoveKeys.has(buildTokenMoveSegmentKey(token, segment))) ?? null;
+}
+
+function buildTokenForMoveSegment(
+  token: BattleOverlayMapTokenSnapshot,
+  segment: BattleOverlayTokenMoveSegment,
+): BattleOverlayMapTokenSnapshot {
+  return {
+    ...token,
+    rowIndex: segment.toRowIndex,
+    colIndex: segment.toColIndex,
+    previousRowIndex: segment.fromRowIndex,
+    previousColIndex: segment.fromColIndex,
+    moveRevision: segment.revision,
+  };
+}
+
+function buildTokenRenderState(
+  token: BattleOverlayMapTokenSnapshot,
+  playedMoveKeys: Set<string>,
+): { token: BattleOverlayMapTokenSnapshot; moveKey: string } {
+  const segment = getNextPendingTokenMoveSegment(token, playedMoveKeys);
+  if (!segment) {
+    return { token, moveKey: '' };
+  }
+  return {
+    token: buildTokenForMoveSegment(token, segment),
+    moveKey: buildTokenMoveSegmentKey(token, segment),
+  };
+}
+
+function collectNextPendingTokenMoveKeys(map: BattleOverlayMapSnapshot, playedMoveKeys: Set<string>): string[] {
+  return map.tokens
+    .map(token => {
+      const segment = getNextPendingTokenMoveSegment(token, playedMoveKeys);
+      return segment ? buildTokenMoveSegmentKey(token, segment) : '';
+    })
+    .filter((moveKey): moveKey is string => Boolean(moveKey));
+}
+
+function joinClasses(...classes: Array<string | false | null | undefined>): string {
+  return classes.filter(Boolean).join(' ');
+}
+
+function getMapPresenceClass(presenceState: MapPresenceState): string {
+  if (presenceState === 'entering') {
+    return styles.overlayRootEntering;
+  }
+  if (presenceState === 'visible') {
+    return styles.overlayRootVisible;
+  }
+  if (presenceState === 'exiting') {
+    return styles.overlayRootExiting;
+  }
+  return styles.overlayRootHidden;
 }
 
 function postReadyMessage(): void {
@@ -368,7 +498,15 @@ export const TuanChatBattleOverlay: FC = () => {
   const stageState = useStageState();
   const [baseSnapshot, setBaseSnapshot] = useState<BattleOverlaySnapshot>(EMPTY_SNAPSHOT);
   const snapshot = useMemo(() => buildSnapshotFromStageState(baseSnapshot, stageState), [baseSnapshot, stageState]);
-  const map = snapshot.visible ? snapshot.map : null;
+  const activeMap = snapshot.visible ? snapshot.map : null;
+  const [renderedMap, setRenderedMap] = useState<BattleOverlayMapSnapshot | null>(activeMap);
+  const [mapPresenceState, setMapPresenceState] = useState<MapPresenceState>('hidden');
+  const [movePlaybackTick, setMovePlaybackTick] = useState(0);
+  const isMapMountedRef = useRef(false);
+  const mapPresenceStateRef = useRef<MapPresenceState>('hidden');
+  const enterTimerRef = useRef<number | null>(null);
+  const exitTimerRef = useRef<number | null>(null);
+  const playedTokenMoveKeysRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     postReadyMessage();
@@ -385,27 +523,121 @@ export const TuanChatBattleOverlay: FC = () => {
     };
   }, []);
 
-  if (!snapshot.visible || !map) {
+  useEffect(() => {
+    return () => {
+      if (enterTimerRef.current != null) {
+        window.clearTimeout(enterTimerRef.current);
+        enterTimerRef.current = null;
+      }
+      if (exitTimerRef.current != null) {
+        window.clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const setPresenceState = (nextState: MapPresenceState) => {
+      mapPresenceStateRef.current = nextState;
+      setMapPresenceState(nextState);
+    };
+    const clearEnterTimer = () => {
+      if (enterTimerRef.current != null) {
+        window.clearTimeout(enterTimerRef.current);
+        enterTimerRef.current = null;
+      }
+    };
+    const clearExitTimer = () => {
+      if (exitTimerRef.current != null) {
+        window.clearTimeout(exitTimerRef.current);
+        exitTimerRef.current = null;
+      }
+    };
+
+    if (activeMap) {
+      setRenderedMap(activeMap);
+      clearExitTimer();
+      const shouldPlayEntry = !isMapMountedRef.current
+        || mapPresenceStateRef.current === 'hidden'
+        || mapPresenceStateRef.current === 'exiting';
+      if (!shouldPlayEntry) {
+        if (mapPresenceStateRef.current !== 'entering') {
+          clearEnterTimer();
+          setPresenceState('visible');
+        }
+        return;
+      }
+      clearEnterTimer();
+      isMapMountedRef.current = true;
+      setPresenceState('entering');
+      enterTimerRef.current = window.setTimeout(() => {
+        enterTimerRef.current = null;
+        if (mapPresenceStateRef.current === 'entering') {
+          setPresenceState('visible');
+        }
+      }, TUANCHAT_MAP_ENTER_ANIMATION_MS);
+      return;
+    }
+
+    clearEnterTimer();
+    if (!isMapMountedRef.current) {
+      setRenderedMap(null);
+      setPresenceState('hidden');
+      return;
+    }
+    // hide 指令会让 activeMap 变空；保留 renderedMap 的最后一帧，给 CSS 出场动画留时间。
+    clearExitTimer();
+    setPresenceState('exiting');
+    exitTimerRef.current = window.setTimeout(() => {
+      exitTimerRef.current = null;
+      isMapMountedRef.current = false;
+      setRenderedMap(null);
+      setPresenceState('hidden');
+    }, TUANCHAT_MAP_EXIT_ANIMATION_MS);
+  }, [activeMap]);
+
+  useEffect(() => {
+    if (!renderedMap) {
+      return;
+    }
+    const nextMoveKeys = collectNextPendingTokenMoveKeys(renderedMap, playedTokenMoveKeysRef.current);
+    if (nextMoveKeys.length === 0) {
+      return;
+    }
+    const timeoutId = window.setTimeout(() => {
+      nextMoveKeys.forEach(moveKey => playedTokenMoveKeysRef.current.add(moveKey));
+      setMovePlaybackTick(currentTick => currentTick + 1);
+    }, TUANCHAT_TOKEN_MOVE_ANIMATION_MS);
+    return () => window.clearTimeout(timeoutId);
+  }, [renderedMap, movePlaybackTick]);
+
+  if (!renderedMap) {
     return null;
   }
 
   return (
-    <div className={styles.overlayRoot}>
+    <div className={joinClasses(styles.overlayRoot, getMapPresenceClass(mapPresenceState))}>
       <div className={styles.mapFrame}>
-        {map.imageUrl ? <img className={styles.mapImage} src={map.imageUrl} alt="" /> : <div className={styles.emptyMap} />}
-        <div className={styles.grid} style={buildGridStyle(map)} />
-        {map.tokens.map((token) => (
-          <div
-            key={token.roleId}
-            className={styles.token}
-            style={buildTokenStyle(token, map)}
-            title={token.name}
-          >
-            {token.avatarUrl
-              ? <img className={styles.tokenImage} src={token.avatarUrl} alt="" />
-              : <span className={styles.tokenLabel}>{token.name.replace(/^#/, '')}</span>}
-          </div>
-        ))}
+        {renderedMap.imageUrl ? <img className={styles.mapImage} src={renderedMap.imageUrl} alt="" /> : <div className={styles.emptyMap} />}
+        <div className={styles.grid} style={buildGridStyle(renderedMap)} />
+        {renderedMap.tokens.map((token) => {
+          const tokenRenderState = buildTokenRenderState(token, playedTokenMoveKeysRef.current);
+          const moveKey = tokenRenderState.moveKey;
+          const renderedToken = tokenRenderState.token;
+          const isTokenMoving = Boolean(moveKey);
+          return (
+            <div
+              key={moveKey || token.roleId}
+              className={joinClasses(styles.token, isTokenMoving && styles.tokenMoving)}
+              style={buildTokenStyle(renderedToken, renderedMap)}
+              title={renderedToken.name}
+            >
+              {renderedToken.avatarUrl
+                ? <img className={styles.tokenImage} src={renderedToken.avatarUrl} alt="" />
+                : <span className={styles.tokenLabel}>{renderedToken.name.replace(/^#/, '')}</span>}
+            </div>
+          );
+        })}
       </div>
     </div>
   );

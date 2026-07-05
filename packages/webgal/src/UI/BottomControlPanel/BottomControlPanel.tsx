@@ -8,7 +8,6 @@ import { easyCompile } from '@/UI/Menu/SaveAndLoad/Save/Save';
 import useFullScreen from '@/hooks/useFullScreen';
 import useSoundEffect from '@/hooks/useSoundEffect';
 import useTrans from '@/hooks/useTrans';
-import { isAllowFullSettingsEnabledFromGameVar } from '@/Core/util/allowFullSettings';
 import { setMenuPanelTag, setVisibility } from '@/store/GUIReducer';
 import { componentsVisibility, MenuPanelTag } from '@/store/guiInterface';
 import { RootState } from '@/store/store';
@@ -28,6 +27,7 @@ import {
   ReplayMusic,
   Save,
   SettingTwo,
+  TreeDiagram,
   Unlock,
 } from '@icon-park/react';
 import { useTranslation } from 'react-i18next';
@@ -50,10 +50,8 @@ export const BottomControlPanel = () => {
   }
   const { isSupported: isFullscreenSupport, isFullScreen, toggle: toggleFullscreen } = useFullScreen();
   const GUIStore = useSelector((state: RootState) => state.GUI);
+  const enableFlowchart = useSelector((state: RootState) => state.userData.globalGameVar.Enable_flowchart === true);
   const stageState = useStageState();
-  const allowFullSettings = useSelector((state: RootState) =>
-    isAllowFullSettingsEnabledFromGameVar(state.userData.globalGameVar),
-  );
   const dispatch = useDispatch();
   const setComponentVisibility = (component: keyof componentsVisibility, visibility: boolean) => {
     dispatch(setVisibility({ component, visibility }));
@@ -147,6 +145,27 @@ export const BottomControlPanel = () => {
             />
             <span className={styles.button_text}>{t('buttons.backlog')}</span>
           </span>
+          {enableFlowchart && (
+            <span
+              className={styles.singleButton}
+              style={{ fontSize }}
+              onClick={() => {
+                setMenuPanel(MenuPanelTag.Flowchart);
+                setComponentVisibility('showMenuPanel', true);
+                playSeClick();
+              }}
+              onMouseEnter={playSeEnter}
+            >
+              <TreeDiagram
+                className={styles.button}
+                theme="outline"
+                size={size}
+                fill="#f5f5f7"
+                strokeWidth={strokeWidth}
+              />
+              <span className={styles.button_text}>{t('buttons.flowchart')}</span>
+            </span>
+          )}
           <span
             className={styles.singleButton}
             style={{ fontSize }}
@@ -266,27 +285,25 @@ export const BottomControlPanel = () => {
             />
             <span className={styles.button_text}>{t('buttons.load')}</span>
           </span>
-          {allowFullSettings && (
-            <span
-              className={styles.singleButton}
-              style={{ fontSize }}
-              onClick={() => {
-                setMenuPanel(MenuPanelTag.Option);
-                setComponentVisibility('showMenuPanel', true);
-                playSeClick();
-              }}
-              onMouseEnter={playSeEnter}
-            >
-              <SettingTwo
-                className={styles.button}
-                theme="outline"
-                size={size}
-                fill="#f5f5f7"
-                strokeWidth={strokeWidth}
-              />
-              <span className={styles.button_text}>{t('buttons.options')}</span>
-            </span>
-          )}
+          <span
+            className={styles.singleButton}
+            style={{ fontSize }}
+            onClick={() => {
+              setMenuPanel(MenuPanelTag.Option);
+              setComponentVisibility('showMenuPanel', true);
+              playSeClick();
+            }}
+            onMouseEnter={playSeEnter}
+          >
+            <SettingTwo
+              className={styles.button}
+              theme="outline"
+              size={size}
+              fill="#f5f5f7"
+              strokeWidth={strokeWidth}
+            />
+            <span className={styles.button_text}>{t('buttons.options')}</span>
+          </span>
           <span
             className={styles.singleButton}
             style={{ fontSize }}

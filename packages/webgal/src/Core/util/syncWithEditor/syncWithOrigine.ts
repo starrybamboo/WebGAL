@@ -9,8 +9,8 @@ import { logger } from '@/Core/util/logger';
 import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import type { IFastPreviewTimeoutPayload } from '@/types/debugProtocol';
 
-const FAST_PREVIEW_MAX_DURATION_MS = 500;
-const FAST_PREVIEW_TIMEOUT_CHECK_INTERVAL = 100;
+const FAST_PREVIEW_SLOW_WARN_DURATION_MS = 500;
+const FAST_PREVIEW_YIELD_INTERVAL = 100;
 
 type FastPreviewTimeoutHandler = (payload: IFastPreviewTimeoutPayload) => void;
 
@@ -18,6 +18,7 @@ export const syncWithOrigine = (
   sceneName: string,
   sentenceId: number,
   onFastPreviewTimeout?: FastPreviewTimeoutHandler,
+  forceReload = false,
 ) => {
   logger.warn('正在跳转到' + sceneName + ':' + sentenceId);
   WebGAL.gameplay.isFastPreview = false;
@@ -32,8 +33,11 @@ export const syncWithOrigine = (
   }
   // 重新获取场景
   const sceneUrl: string = assetSetter(sceneName, fileType.scene);
+  const sceneFetchUrl = forceReload
+    ? `${sceneUrl}${sceneUrl.includes('?') ? '&' : '?'}_webgalSync=${Date.now()}`
+    : sceneUrl;
   // 场景写入到运行时
-  sceneFetcher(sceneUrl)
+  sceneFetcher(sceneFetchUrl)
     .then((rawScene) => {
       resetStage(true);
       WebGAL.sceneManager.sceneData.currentScene = sceneParser(rawScene, sceneName, sceneUrl);
@@ -58,8 +62,7 @@ export async function syncFast(
   WebGAL.gameplay.isFast = true;
   WebGAL.gameplay.isFastPreview = true;
   let forwardCount = 0;
-  let isTimedOut = false;
-  let timeoutElapsedMs = 0;
+  let slowPreviewWarned = false;
   let suspendedElapsedMs = 0;
 
   try {
@@ -78,18 +81,24 @@ export async function syncFast(
         break;
       }
 
-      if (forwardCount % FAST_PREVIEW_TIMEOUT_CHECK_INTERVAL === 0) {
+      if (forwardCount % FAST_PREVIEW_YIELD_INTERVAL === 0) {
         const elapsedMs = performance.now() - fastPreviewStartTime - suspendedElapsedMs;
-        if (elapsedMs > FAST_PREVIEW_MAX_DURATION_MS) {
-          isTimedOut = true;
-          timeoutElapsedMs = Math.round(elapsedMs);
-          break;
+        if (!slowPreviewWarned && elapsedMs > FAST_PREVIEW_SLOW_WARN_DURATION_MS) {
+          slowPreviewWarned = true;
+          logger.warn(`实时预览快进耗时超过 ${FAST_PREVIEW_SLOW_WARN_DURATION_MS}ms，继续快进到目标语句`);
         }
+        await yieldFastPreviewControl();
       }
 
       if (WebGAL.gameplay.performController.hasPendingBlockingStateCalculationPerform()) {
-        logger.warn('实时预览在需要外部输入的语句前停止演算');
-        break;
+        const stateCalculationWaitStart = performance.now();
+        const resolved = await WebGAL.gameplay.performController.resolvePendingBlockingStateCalculationPerforms();
+        if (resolved) {
+          suspendedElapsedMs += performance.now() - stateCalculationWaitStart;
+        } else {
+          logger.warn('实时预览在需要外部输入的语句前停止演算');
+          break;
+        }
       }
 
       if (
@@ -113,17 +122,17 @@ export async function syncFast(
       ? Math.min(WebGAL.sceneManager.sceneData.currentSentenceId, sentenceId)
       : sentenceId;
   const fastPreviewElapsedMs = Math.round(performance.now() - fastPreviewStartTime - suspendedElapsedMs);
-  if (isTimedOut) {
+  if (forwardedLineCount < sentenceId && WebGAL.sceneManager.sceneData.currentScene.sceneName === currentSceneName) {
     const payload: IFastPreviewTimeoutPayload = {
       scene: WebGAL.sceneManager.sceneData.currentScene.sceneName,
       sentence: WebGAL.sceneManager.sceneData.currentSentenceId,
       targetSentence: sentenceId,
       forwardedLineCount,
-      elapsedMs: Math.max(timeoutElapsedMs, fastPreviewElapsedMs),
-      maxDurationMs: FAST_PREVIEW_MAX_DURATION_MS,
+      elapsedMs: fastPreviewElapsedMs,
+      maxDurationMs: FAST_PREVIEW_SLOW_WARN_DURATION_MS,
     };
     logger.warn(
-      `实时预览快进停止：超过最大耗时 ${FAST_PREVIEW_MAX_DURATION_MS}ms，已快进 ${forwardedLineCount} 行，用时 ${payload.elapsedMs}ms`,
+      `实时预览快进未到达目标语句，已快进 ${forwardedLineCount} 行，用时 ${payload.elapsedMs}ms`,
     );
     onFastPreviewTimeout?.(payload);
   }
@@ -145,4 +154,8 @@ async function waitForPendingSceneWrite() {
   }
   await sceneWritePromise;
   return true;
+}
+
+function yieldFastPreviewControl(): Promise<void> {
+  return new Promise(resolve => setTimeout(resolve, 0));
 }

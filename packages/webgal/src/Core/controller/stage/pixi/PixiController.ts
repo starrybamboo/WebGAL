@@ -8,13 +8,12 @@ import { SCREEN_CONSTANTS } from '@/Core/util/constants';
 import { logger } from '@/Core/util/logger';
 import { v4 as uuid } from 'uuid';
 import { cloneDeep, isEqual } from 'lodash';
-import omitBy from 'lodash/omitBy';
-import isUndefined from 'lodash/isUndefined';
 import * as PIXI from 'pixi.js';
 import { INSTALLED } from 'pixi.js';
 import { GifResource } from './GifResource';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
-import { WebpResource } from './WebpResource';
+import { queryStageObjectReferenceBox, type QueryTargetReferenceBoxResult } from './referenceBox';
+import { assignPixiTransform } from './stageEffectTransform';
 
 export interface IAnimationObject {
   setStartState: Function;
@@ -67,25 +66,10 @@ export interface ILive2DRecord {
 window.PIXI = PIXI;
 
 INSTALLED.push(GifResource);
-INSTALLED.push(WebpResource);
 
 export default class PixiStage {
   public static assignTransform<T extends ITransform>(target: T, source?: ITransform, convertAlpha = true) {
-    if (!source) return;
-    const targetScale = target.scale;
-    const targetPosition = target.position;
-    if (target.scale) Object.assign(targetScale!, omitBy(source.scale || {}, isUndefined));
-    if (target.position) Object.assign(targetPosition!, omitBy(source.position || {}, isUndefined));
-    Object.assign(target, omitBy(source, isUndefined));
-    target.scale = targetScale;
-    target.position = targetPosition;
-    if (convertAlpha) {
-      const sourceAlpha = source.alpha;
-      if (sourceAlpha !== undefined) {
-        target.alpha = 1;
-        (target as any).alphaFilterVal = sourceAlpha;
-      }
-    }
+    assignPixiTransform(target, source, convertAlpha);
   }
 
   /**
@@ -122,6 +106,7 @@ export default class PixiStage {
   private isRenderPending = false;
   // 更新 ticker 状态的防抖标记
   private isTickerUpdatePending = false;
+  private referenceBoxWaiters = new Map<string, Set<() => void>>();
 
   /**
    * 暂时没用上，以后可能用
@@ -469,6 +454,7 @@ export default class PixiStage {
 
           // 挂载
           thisBgContainer.addChild(bgSprite);
+          this.notifyTargetReferenceBoxChanged(key);
           this.requestRender();
         }
       }, 0);
@@ -553,6 +539,7 @@ export default class PixiStage {
             thisBgContainer.setBaseY(this.stageHeight / 2);
             thisBgContainer.pivot.set(0, this.stageHeight / 2);
             thisBgContainer.addChild(bgSprite);
+            this.notifyTargetReferenceBoxChanged(key);
           });
         }
       }, 0);
@@ -611,7 +598,6 @@ export default class PixiStage {
       sourceType: sourceExt === 'gif' ? 'gif' : 'img',
       sourceExt,
     });
-
     // 完成图片加载后执行的函数
     const setup = () => {
       // TODO：找一个更好的解法，现在的解法是无论是否复用原来的资源，都设置一个延时以让动画工作正常！
@@ -625,14 +611,7 @@ export default class PixiStage {
           const originalHeight = texture.height;
           const scaleX = this.stageWidth / originalWidth;
           const scaleY = this.stageHeight / originalHeight;
-          let targetScale = Math.min(scaleX, scaleY);
-          const stageAspect = this.stageWidth / this.stageHeight;
-          const figureAspect = originalWidth / originalHeight;
-          const useCoverForSide = presetPosition !== 'center' && figureAspect > stageAspect;
-          if (useCoverForSide) {
-            // 左右位对超宽立绘按高度缩放，留出水平位移空间
-            targetScale = scaleY;
-          }
+          const targetScale = Math.min(scaleX, scaleY);
           const figureSprite = new PIXI.Sprite(texture);
           figureSprite.scale.x = targetScale;
           figureSprite.scale.y = targetScale;
@@ -648,20 +627,14 @@ export default class PixiStage {
             thisFigureContainer.setBaseX(this.stageWidth / 2);
           }
           if (presetPosition === 'left') {
-            // 超宽左右位按边裁切时需要反向对齐，避免左右视口颠倒
-            const leftBaseX = useCoverForSide
-              ? (this.stageWidth - targetWidth / 2)
-              : (targetWidth / 2);
-            thisFigureContainer.setBaseX(leftBaseX);
+            thisFigureContainer.setBaseX(targetWidth / 2);
           }
           if (presetPosition === 'right') {
-            const rightBaseX = useCoverForSide
-              ? (targetWidth / 2)
-              : (this.stageWidth - targetWidth / 2);
-            thisFigureContainer.setBaseX(rightBaseX);
+            thisFigureContainer.setBaseX(this.stageWidth - targetWidth / 2);
           }
           thisFigureContainer.pivot.set(0, this.stageHeight / 2);
           thisFigureContainer.addChild(figureSprite);
+          this.notifyTargetReferenceBoxChanged(key);
           this.requestRender();
         }
       }, 0);
@@ -823,6 +796,7 @@ export default class PixiStage {
               Live2D.SoundManager.volume = 0; // @ts-ignore
 
               thisFigureContainer.addChild(model);
+              instance.notifyTargetReferenceBoxChanged(key);
             });
           })();
         }
@@ -1046,6 +1020,36 @@ export default class PixiStage {
     return [...this.figureObjects, ...this.backgroundObjects, this.mainStageObject].find((e) => e.key === key);
   }
 
+  public queryTargetReferenceBox(target: string): QueryTargetReferenceBoxResult {
+    return queryStageObjectReferenceBox(target, this.getStageObjByKey(target), {
+      width: this.stageWidth,
+      height: this.stageHeight,
+    });
+  }
+
+  public waitForTargetReferenceBox(target: string, timeoutMs: number): Promise<void> {
+    return new Promise((resolve) => {
+      const existingWaiters = this.referenceBoxWaiters.get(target);
+      const waiters = existingWaiters ?? new Set<() => void>();
+      if (!existingWaiters) {
+        this.referenceBoxWaiters.set(target, waiters);
+      }
+
+      let timeoutId = 0;
+      const resolveAndCleanup = () => {
+        window.clearTimeout(timeoutId);
+        waiters.delete(resolveAndCleanup);
+        if (waiters.size === 0) {
+          this.referenceBoxWaiters.delete(target);
+        }
+        resolve();
+      };
+
+      timeoutId = window.setTimeout(resolveAndCleanup, timeoutMs);
+      waiters.add(resolveAndCleanup);
+    });
+  }
+
   public getStageObjByUuid(objUuid: string) {
     return [...this.figureObjects, ...this.backgroundObjects, this.mainStageObject].find((e) => e.uuid === objUuid);
   }
@@ -1073,6 +1077,7 @@ export default class PixiStage {
       }
       bgSprite.pixiContainer = null;
       this.figureObjects.splice(indexFig, 1);
+      this.notifyTargetReferenceBoxChanged(key);
     }
     if (indexBg >= 0) {
       const bgSprite = this.backgroundObjects[indexBg];
@@ -1086,6 +1091,7 @@ export default class PixiStage {
       }
       bgSprite.pixiContainer = null;
       this.backgroundObjects.splice(indexBg, 1);
+      this.notifyTargetReferenceBoxChanged(key);
     }
     // /**
     //  * 删掉相关 Effects，因为已经移除了
@@ -1155,6 +1161,17 @@ export default class PixiStage {
       this.live2dFigureRecorder[figureTargetIndex].focus = focus;
     } else {
       this.live2dFigureRecorder.push({ target, motion: '', expression: '', blink: baseBlinkParam, focus });
+    }
+  }
+
+  public notifyTargetReferenceBoxChanged(target: string): void {
+    const waiters = this.referenceBoxWaiters.get(target);
+    if (!waiters) {
+      return;
+    }
+
+    for (const resolve of [...waiters]) {
+      resolve();
     }
   }
 

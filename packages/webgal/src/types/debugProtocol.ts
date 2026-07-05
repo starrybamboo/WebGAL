@@ -48,9 +48,9 @@ export interface IDebugMessage {
 }
 
 export interface IComponentsVisibility {
-  showStarter: boolean; // 是否显示初始界面（用于使得bgm可以播放)
-  showTitle: boolean; // 是否显示标题界面
-  showMenuPanel: boolean; // 是否显示Menu界面
+  showStarter: boolean;
+  showTitle: boolean;
+  showMenuPanel: boolean;
   showTextBox: boolean;
   showControls: boolean;
   controlsVisibility: boolean;

@@ -1,11 +1,17 @@
 import { ISentence } from '@/Core/controller/scene/sceneInterface';
-import { createNonePerform, IPerform } from '@/Core/Modules/perform/performInterface';
+import { IPerform } from '@/Core/Modules/perform/performInterface';
 import { createInitialTuanChatMapState, ITuanChatMapState, ITuanChatMapTokenState } from '@/Core/Modules/stage/stageInterface';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import { getBooleanArgByKey, getNumberArgByKey, getStringArgByKey } from '@/Core/util/getSentenceArg';
+import {
+  TUANCHAT_MAP_ENTER_ANIMATION_MS,
+  TUANCHAT_MAP_EXIT_ANIMATION_MS,
+  TUANCHAT_TOKEN_MOVE_ANIMATION_MS,
+} from './tuanChatMapTimings';
 
 type TuanChatMapAction = 'reset' | 'show' | 'hide' | 'config' | 'clear' | 'token';
+const MAX_TOKEN_MOVE_SEGMENTS = 32;
 
 function normalizeAction(value: string): TuanChatMapAction | null {
   const action = value.trim();
@@ -69,14 +75,57 @@ function setMapState(nextState: ITuanChatMapState): void {
   stageStateManager.setStage('tuanChatMap', updateRevision(nextState));
 }
 
-function upsertToken(tokens: ITuanChatMapTokenState[], nextToken: ITuanChatMapTokenState): ITuanChatMapTokenState[] {
+function createMapAutoPerform(duration: number): IPerform {
+  return {
+    performName: `tuanChatMap-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    duration,
+    goNextWhenOver: true,
+    isHoldOn: false,
+    stopFunction: () => {},
+    blockingNext: () => true,
+    blockingAuto: () => true,
+  };
+}
+
+function hasRenderableMap(state: ITuanChatMapState): boolean {
+  return state.configActive || state.imageUrl !== '' || state.tokens.length > 0;
+}
+
+function upsertToken(tokens: ITuanChatMapTokenState[], nextToken: ITuanChatMapTokenState): { tokens: ITuanChatMapTokenState[]; hasMoved: boolean } {
   const tokenIndex = tokens.findIndex(token => token.roleId === nextToken.roleId);
   if (tokenIndex < 0) {
-    return [...tokens, nextToken].sort((left, right) => left.roleId - right.roleId);
+    return {
+      tokens: [...tokens, { ...nextToken, moveRevision: 0, moveSegments: [] }].sort((left, right) => left.roleId - right.roleId),
+      hasMoved: false,
+    };
   }
+  const existingToken = tokens[tokenIndex];
+  const hasMoved = existingToken.rowIndex !== nextToken.rowIndex || existingToken.colIndex !== nextToken.colIndex;
+  const moveRevision = hasMoved ? (existingToken.moveRevision ?? 0) + 1 : (existingToken.moveRevision ?? 0);
+  const moveSegments = hasMoved
+    ? [
+        ...(existingToken.moveSegments ?? []),
+        {
+          fromRowIndex: existingToken.rowIndex,
+          fromColIndex: existingToken.colIndex,
+          toRowIndex: nextToken.rowIndex,
+          toColIndex: nextToken.colIndex,
+          revision: moveRevision,
+        },
+      ].slice(-MAX_TOKEN_MOVE_SEGMENTS)
+    : existingToken.moveSegments;
   const nextTokens = [...tokens];
-  nextTokens[tokenIndex] = nextToken;
-  return nextTokens.sort((left, right) => left.roleId - right.roleId);
+  nextTokens[tokenIndex] = {
+    ...nextToken,
+    previousRowIndex: hasMoved ? existingToken.rowIndex : undefined,
+    previousColIndex: hasMoved ? existingToken.colIndex : undefined,
+    moveRevision,
+    moveSegments,
+  };
+  return {
+    tokens: nextTokens.sort((left, right) => left.roleId - right.roleId),
+    hasMoved,
+  };
 }
 
 function applyConfig(sentence: ISentence, state: ITuanChatMapState): ITuanChatMapState {
@@ -93,37 +142,46 @@ function applyConfig(sentence: ISentence, state: ITuanChatMapState): ITuanChatMa
     gridCols,
     gridColor: normalizeGridColor(getStringArgByKey(sentence, 'gridColor'), state.gridColor),
     tokens,
+    pendingMoveOnShow: false,
   };
 }
 
-function applyToken(sentence: ISentence, state: ITuanChatMapState): ITuanChatMapState {
+function applyToken(sentence: ISentence, state: ITuanChatMapState): { state: ITuanChatMapState; hasMoved: boolean } {
   const roleId = normalizePositiveInteger(getNumberArgByKey(sentence, 'roleId'), 0);
   if (roleId <= 0) {
-    return state;
+    return { state, hasMoved: false };
   }
   if (getBooleanArgByKey(sentence, 'remove') === true) {
     return {
-      ...state,
-      tokens: state.tokens.filter(token => token.roleId !== roleId),
+      state: {
+        ...state,
+        tokens: state.tokens.filter(token => token.roleId !== roleId),
+      },
+      hasMoved: false,
     };
   }
   const rowIndex = normalizeNonNegativeInteger(getNumberArgByKey(sentence, 'row'));
   const colIndex = normalizeNonNegativeInteger(getNumberArgByKey(sentence, 'col'));
   if (rowIndex == null || colIndex == null) {
-    return state;
+    return { state, hasMoved: false };
   }
   const existing = state.tokens.find(token => token.roleId === roleId);
   const name = getStringArgByKey(sentence, 'name')?.trim() || existing?.name || '';
   const avatarUrl = resolveAssetUrl(getStringArgByKey(sentence, 'avatar'), fileType.figure) || existing?.avatarUrl || '';
+  const upsertResult = upsertToken(state.tokens, {
+    roleId,
+    rowIndex,
+    colIndex,
+    name,
+    avatarUrl,
+  });
   return {
-    ...state,
-    tokens: upsertToken(state.tokens, {
-      roleId,
-      rowIndex,
-      colIndex,
-      name,
-      avatarUrl,
-    }),
+    state: {
+      ...state,
+      tokens: upsertResult.tokens,
+      pendingMoveOnShow: state.pendingMoveOnShow || (upsertResult.hasMoved && !state.visible),
+    },
+    hasMoved: upsertResult.hasMoved,
   };
 }
 
@@ -133,20 +191,25 @@ function applyToken(sentence: ISentence, state: ITuanChatMapState): ITuanChatMap
 export const tuanChatMap = (sentence: ISentence): IPerform => {
   const action = normalizeAction(sentence.content);
   if (!action) {
-    return createNonePerform();
+    return createMapAutoPerform(0);
   }
   const current = getCurrentMapState();
   if (action === 'reset') {
     setMapState(createInitialTuanChatMapState());
-    return createNonePerform();
+    return createMapAutoPerform(hasRenderableMap(current) ? TUANCHAT_MAP_EXIT_ANIMATION_MS : 0);
   }
   if (action === 'show') {
-    setMapState({ ...current, visible: true });
-    return createNonePerform();
+    const shouldEnter = !current.visible && hasRenderableMap(current);
+    const shouldWaitForMove = current.pendingMoveOnShow;
+    setMapState({ ...current, visible: true, pendingMoveOnShow: false });
+    return createMapAutoPerform(Math.max(
+      shouldEnter ? TUANCHAT_MAP_ENTER_ANIMATION_MS : 0,
+      shouldWaitForMove ? TUANCHAT_TOKEN_MOVE_ANIMATION_MS : 0,
+    ));
   }
   if (action === 'hide') {
     setMapState({ ...current, visible: false });
-    return createNonePerform();
+    return createMapAutoPerform(current.visible && hasRenderableMap(current) ? TUANCHAT_MAP_EXIT_ANIMATION_MS : 0);
   }
   if (action === 'clear') {
     const initialState = createInitialTuanChatMapState();
@@ -154,12 +217,13 @@ export const tuanChatMap = (sentence: ISentence): IPerform => {
       ...initialState,
       visible: current.visible,
     });
-    return createNonePerform();
+    return createMapAutoPerform(0);
   }
   if (action === 'config') {
     setMapState(applyConfig(sentence, current));
-    return createNonePerform();
+    return createMapAutoPerform(0);
   }
-  setMapState(applyToken(sentence, current));
-  return createNonePerform();
+  const tokenResult = applyToken(sentence, current);
+  setMapState(tokenResult.state);
+  return createMapAutoPerform(tokenResult.hasMoved && current.visible ? TUANCHAT_TOKEN_MOVE_ANIMATION_MS : 0);
 };

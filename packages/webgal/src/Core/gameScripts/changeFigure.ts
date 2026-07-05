@@ -10,8 +10,15 @@ import { logger } from '@/Core/util/logger';
 import { applyAnimationEndState, getAnimateDuration, getEnterExitAnimation } from '@/Core/Modules/animationFunctions';
 import { WebGAL } from '@/Core/WebGAL';
 import { baseBlinkParam, baseFocusParam, BlinkParam, FocusParam } from '@/Core/live2DCore';
-import { DEFAULT_FIG_IN_DURATION, DEFAULT_FIG_OUT_DURATION, WEBGAL_NONE } from '../constants';
+import { WEBGAL_NONE } from '../constants';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
+import { parseTransformFrame } from './parseTransformFrame';
+import { getComposedFigureDebugInfo, getComposedFigureUrl } from '@/Core/gameScripts/composeFigure';
+import {
+  getConfiguredFigureDefaultTransitionAnimation,
+  getConfiguredFigureDefaultTransitionDuration,
+} from '@/Core/util/figureTransitionConfig';
+import { webgalStore } from '@/store/store';
 /**
  * 更改立绘
  * @param sentence 语句
@@ -25,6 +32,21 @@ export function changeFigure(sentence: ISentence): IPerform {
   }
   if (getBooleanArgByKey(sentence, 'clear')) {
     content = '';
+  }
+  if (getBooleanArgByKey(sentence, 'composite')) {
+    const debugInfo = getComposedFigureDebugInfo(content);
+    logger.info('[changeFigure composite] lookup composed alias', debugInfo);
+    const composedUrl = getComposedFigureUrl(content);
+    if (composedUrl) {
+      logger.info('[changeFigure composite] resolved composed alias', {
+        rawContent: sentence.content,
+        normalizedContent: content,
+        composedUrl,
+      });
+      content = composedUrl;
+    } else {
+      logger.error(`未找到合成立绘：${content}`, debugInfo);
+    }
   }
 
   // 根据参数设置指定位置
@@ -77,24 +99,58 @@ export function changeFigure(sentence: ISentence): IPerform {
   }
 
   // 图片立绘差分
-  const mouthOpen = assetSetter(getStringArgByKey(sentence, 'mouthOpen') ?? '', fileType.figure);
-  const mouthClose = assetSetter(getStringArgByKey(sentence, 'mouthClose') ?? '', fileType.figure);
-  const mouthHalfOpen = assetSetter(getStringArgByKey(sentence, 'mouthHalfOpen') ?? '', fileType.figure);
-  const eyesOpen = assetSetter(getStringArgByKey(sentence, 'eyesOpen') ?? '', fileType.figure);
-  const eyesClose = assetSetter(getStringArgByKey(sentence, 'eyesClose') ?? '', fileType.figure);
+  const mouthOpen = optionalFigureAssetUrl(getStringArgByKey(sentence, 'mouthOpen'));
+  const mouthClose = optionalFigureAssetUrl(getStringArgByKey(sentence, 'mouthClose'));
+  const mouthHalfOpen = optionalFigureAssetUrl(getStringArgByKey(sentence, 'mouthHalfOpen'));
+  const eyesOpen = optionalFigureAssetUrl(getStringArgByKey(sentence, 'eyesOpen'));
+  const eyesClose = optionalFigureAssetUrl(getStringArgByKey(sentence, 'eyesClose'));
   const animationFlag = getStringArgByKey(sentence, 'animationFlag') ?? '';
+  const figureAssociatedAnimationAssets = {
+    mouthOpen,
+    mouthClose,
+    mouthHalfOpen,
+    eyesOpen,
+    eyesClose,
+  };
+  const enabledAssociatedAnimationAssets = Object.entries(figureAssociatedAnimationAssets).filter(([, url]) => url !== '');
+  if (enabledAssociatedAnimationAssets.length === 0) {
+    logger.info('[changeFigure] no associated animation assets', {
+      content,
+      id,
+    });
+  } else {
+    const emptyAssociatedAnimationAssets = Object.entries(figureAssociatedAnimationAssets).filter(([, url]) =>
+      isEmptyFigureAssetUrl(url),
+    );
+    if (emptyAssociatedAnimationAssets.length > 0) {
+      logger.info('[changeFigure] empty associated animation assets', {
+        content,
+        id,
+        emptyKeys: emptyAssociatedAnimationAssets.map(([key]) => key),
+        values: Object.fromEntries(emptyAssociatedAnimationAssets),
+      });
+    }
+    logger.info('[changeFigure] associated animation assets', {
+      content,
+      id,
+      assetKeys: enabledAssociatedAnimationAssets.map(([key]) => key),
+    });
+  }
 
   // 其他参数
   const transformString = getStringArgByKey(sentence, 'transform');
   const ease = getStringArgByKey(sentence, 'ease') ?? '';
-  let duration = getNumberArgByKey(sentence, 'duration') ?? DEFAULT_FIG_IN_DURATION;
+  const globalGameVar = webgalStore.getState().userData.globalGameVar;
+  let duration = getNumberArgByKey(sentence, 'duration') ?? getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'enter');
+  const configuredDefaultEnterAnimation = getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'enter');
   const enterAnimation = getStringArgByKey(sentence, 'enter');
   const exitAnimation = getStringArgByKey(sentence, 'exit');
   let zIndex = getNumberArgByKey(sentence, 'zIndex') ?? -1;
   let blendMode = getStringArgByKey(sentence, 'blendMode');
   const enterDuration = getNumberArgByKey(sentence, 'enterDuration') ?? duration;
   duration = enterDuration;
-  const exitDuration = getNumberArgByKey(sentence, 'exitDuration') ?? DEFAULT_FIG_OUT_DURATION;
+  const exitDuration = getNumberArgByKey(sentence, 'exitDuration') ?? getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'exit');
+  const ignoreDefault = getBooleanArgByKey(sentence, 'ignoreDefault') ?? false;
 
   const currentFigureAssociatedAnimation = stageStateManager.getCalculationStageState().figureAssociatedAnimation;
   const filteredFigureAssociatedAnimation = currentFigureAssociatedAnimation.filter((item) => item.targetId !== id);
@@ -111,7 +167,9 @@ export function changeFigure(sentence: ISentence): IPerform {
       close: eyesClose,
     },
   };
-  filteredFigureAssociatedAnimation.push(newFigureAssociatedAnimationItem);
+  if (enabledAssociatedAnimationAssets.length > 0) {
+    filteredFigureAssociatedAnimation.push(newFigureAssociatedAnimationItem);
+  }
   stageStateManager.setStage('figureAssociatedAnimation', filteredFigureAssociatedAnimation);
 
   /**
@@ -121,23 +179,23 @@ export function changeFigure(sentence: ISentence): IPerform {
   if (key !== '') {
     const figWithKey = stageStateManager.getCalculationStageState().freeFigure.find((e) => e.key === key);
     if (figWithKey) {
-      if (figWithKey.name === sentence.content) {
+      if (figWithKey.name === content) {
         isUrlChanged = false;
       }
     }
   } else {
     if (pos === 'center') {
-      if (stageStateManager.getCalculationStageState().figName === sentence.content) {
+      if (stageStateManager.getCalculationStageState().figName === content) {
         isUrlChanged = false;
       }
     }
     if (pos === 'left') {
-      if (stageStateManager.getCalculationStageState().figNameLeft === sentence.content) {
+      if (stageStateManager.getCalculationStageState().figNameLeft === content) {
         isUrlChanged = false;
       }
     }
     if (pos === 'right') {
-      if (stageStateManager.getCalculationStageState().figNameRight === sentence.content) {
+      if (stageStateManager.getCalculationStageState().figNameRight === content) {
         isUrlChanged = false;
       }
     }
@@ -166,7 +224,9 @@ export function changeFigure(sentence: ISentence): IPerform {
       .animationSettings.find((setting) => setting.target === key);
     const existingEnterAnimationName = existingSetting?.enterAnimationName;
     const hasKeepOffsetEnter = existingSetting?.enterKeepOffset ?? false;
-    const shouldGenerateEnterAnimation = !existingEnterAnimationName || !hasKeepOffsetEnter || !!enterAnimation;
+    const shouldUseConfiguredDefaultEnterAnimation = !!configuredDefaultEnterAnimation && !enterAnimation;
+    const shouldGenerateEnterAnimation =
+      !shouldUseConfiguredDefaultEnterAnimation && (!existingEnterAnimationName || !hasKeepOffsetEnter || !!enterAnimation);
     let didSetEnterAnimation = false;
     // 处理 transform 和 默认 transform
     let animationObj: AnimationFrame[];
@@ -361,6 +421,16 @@ function getOverrideBoundsArr(raw: string): undefined | [number, number, number,
   isPass = isPass && parseOverrideBoundsResult.length === 4;
   if (isPass) return parseOverrideBoundsResult as [number, number, number, number];
   else return undefined;
+}
+
+function isEmptyFigureAssetUrl(url: string): boolean {
+  return url === './game/figure/' || url.endsWith('/game/figure/');
+}
+
+function optionalFigureAssetUrl(fileName: string | null | undefined): string {
+  const normalizedFileName = fileName?.trim() ?? '';
+  if (normalizedFileName === '') return '';
+  return assetSetter(normalizedFileName, fileType.figure);
 }
 
 function buildTransformFromFrame(frame: Partial<AnimationFrame>): ITransform {

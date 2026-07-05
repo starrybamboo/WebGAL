@@ -1,7 +1,7 @@
 /**
  * 语句类型
  */
-import { sceneEntry, ISceneEntry } from './runtimeInterface';
+import { ISceneEntry } from './runtimeInterface';
 import { fileType } from './assets';
 
 export enum commandType {
@@ -41,6 +41,7 @@ export enum commandType {
   wait,
   callSteam, // 调用Steam功能
   dice,
+  composeFigure, // 合成立绘
   tuanChatMap, // 团剧共创地图
 }
 

@@ -1,9 +1,0 @@
-Game_name:CF Pages Shared Engine Demo;
-Show_panic:true;
-Allow_Full_Settings:false;
-Enable_Speaker_Focus:true;
-Default_Language:zh-cn;
-Enable_Appreciation:false;
-TypingSoundEnabled:false;
-TypingSoundInterval:1.5;
-TypingSoundPunctuationPause:100;

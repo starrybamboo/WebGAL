@@ -11,8 +11,6 @@ import { setVisibility } from '@/store/GUIReducer';
 import { TextBoxFilm } from '@/Stage/TextBox/TextBoxFilm';
 import { useHotkey } from '@/hooks/useHotkey';
 import IntroContainer from '@/Stage/introContainer/IntroContainer';
-import { DicePerform } from '@/Stage/DicePerform/DicePerform';
-import { TuanChatBattleOverlay } from '@/Stage/TuanChatBattleOverlay/TuanChatBattleOverlay';
 import { isIOS } from '@/Core/initializeScript';
 import { WebGAL } from '@/Core/WebGAL';
 import { IGuiState } from '@/store/guiInterface';
@@ -20,7 +18,7 @@ import { IStageState } from '@/Core/Modules/stage/stageInterface';
 import { useStageState } from '@/hooks/useStageState';
 import { isSpeakerFocusEnabled } from '@/Core/util/speakerFocusConfig';
 import { useApplySpeakerFocus } from '@/Stage/useApplySpeakerFocus';
-// import OldStage from '@/Components/Stage/OldStage/OldStage';
+import { TuanChatBattleOverlay } from '@/Stage/TuanChatBattleOverlay/TuanChatBattleOverlay';
 
 let timeoutEventHandle: ReturnType<typeof setTimeout> | null = null;
 // 视为“未移动”的最小移动阈值（像素^2），例如 4px -> 16
@@ -80,21 +78,16 @@ function updateControlsVisibility(
 export const Stage: FC = () => {
   const stageState = useStageState();
   const GUIState = useSelector((state: RootState) => state.GUI);
-  const speakerFocusEnabled = useSelector((state: RootState) => isSpeakerFocusEnabled(state.userData.globalGameVar));
   const dispatch = useDispatch();
 
   useHotkey();
-  useApplySpeakerFocus(stageState, speakerFocusEnabled);
 
   return (
     <div className={styles.MainStage_main}>
       <FullScreenPerform />
-      {/* 已弃用旧的立绘与背景舞台 */}
-      {/* <OldStage /> */}
+      <TuanChatBattleOverlay />
       <div id="pixiContianer" className={styles.pixiContainer} style={{ zIndex: isIOS ? '-5' : undefined }} />
       <div id="chooseContainer" className={styles.chooseContainer} />
-      <TuanChatBattleOverlay />
-      <DicePerform />
       {GUIState.showTextBox && stageState.enableFilm === '' && !stageState.isDisableTextbox && <TextBox />}
       {GUIState.showTextBox && stageState.enableFilm !== '' && <TextBoxFilm />}
       <AudioContainer />
@@ -105,14 +98,8 @@ export const Stage: FC = () => {
             dispatch(setVisibility({ component: 'showTextBox', visibility: true }));
             return;
           }
-          const shouldContinueAfterStoppingAuto = WebGAL.gameplay.isAuto || WebGAL.gameplay.isFast;
           stopAll();
-          const didAdvance = nextSentence();
-          if (shouldContinueAfterStoppingAuto && !didAdvance) {
-            window.requestAnimationFrame(() => {
-              nextSentence();
-            });
-          }
+          nextSentence();
         }}
         onDoubleClick={() => {
           WebGAL.events.fullscreenDbClick.emit();

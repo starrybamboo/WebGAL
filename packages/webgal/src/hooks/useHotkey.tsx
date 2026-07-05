@@ -1,4 +1,4 @@
-import { setFastButton, startFast, stopAll, stopFast } from '@/Core/controller/gamePlay/fastSkip';
+import { startFast, startTemporaryFast, stopAll, stopFast } from '@/Core/controller/gamePlay/fastSkip';
 import { nextSentence } from '@/Core/controller/gamePlay/nextSentence';
 import { fastSaveGame } from '@/Core/controller/storage/fastSaveLoad';
 import { setStorage } from '@/Core/controller/storage/storageController';
@@ -57,6 +57,7 @@ export function useMouseRightClickHotKey() {
   const setComponentVisibility = useSetComponentVisibility();
   const isGameActive = useGameActive<typeof GUIStore>(GUIStore);
   const isInBackLog = useIsInBackLog<typeof GUIStore>(GUIStore);
+  const isInFlowchart = useIsInFlowchart<typeof GUIStore>(GUIStore);
   const isOpenedDialog = useIsOpenedDialog<typeof GUIStore>(GUIStore);
   const validMenuPanelTag = useValidMenuPanelTag<typeof GUIStore>(GUIStore);
   const isShowExtra = useIsOpenedExtra<typeof GUIStore>(GUIStore);
@@ -76,6 +77,10 @@ export function useMouseRightClickHotKey() {
       setComponentVisibility('showBacklog', false);
       setComponentVisibility('showTextBox', true);
     }
+    if (isInFlowchart()) {
+      setComponentVisibility('showFlowchart', false);
+      setComponentVisibility('showTextBox', true);
+    }
     if (validMenuPanelTag()) {
       setComponentVisibility('showMenuPanel', false);
     }
@@ -89,10 +94,6 @@ export function useMouseRightClickHotKey() {
     document.removeEventListener('contextmenu', handleContextMenu);
   });
 }
-
-let wheelTimeout = setTimeout(() => {
-  // 初始化，什么也不干
-}, 0);
 
 /**
  * 滚轮向上打开历史记录
@@ -138,14 +139,8 @@ export function useMouseWheel() {
       }
       // setComponentVisibility('showBacklog', false);
     } else if (isGameActive() && direction === 'down' && !ctrlKey) {
-      clearTimeout(wheelTimeout);
-      // 已开启快进模式
-      if (WebGAL.gameplay.isFast) stopFast();
-      WebGAL.gameplay.isFast = true;
       // 滚轮视作快进
-      setTimeout(() => {
-        WebGAL.gameplay.isFast = false;
-      }, 150);
+      startTemporaryFast();
       next();
     }
   }, []);
@@ -260,6 +255,7 @@ function useGameActive<T = any>(GUIStore: T & any): () => boolean {
       !GUIStore.current.showTitle &&
       !GUIStore.current.showMenuPanel &&
       !GUIStore.current.showBacklog &&
+      !GUIStore.current.showFlowchart &&
       !GUIStore.current.showPanicOverlay
     );
   }, [GUIStore]);
@@ -269,6 +265,12 @@ function useGameActive<T = any>(GUIStore: T & any): () => boolean {
 function useIsInBackLog<T = any>(GUIStore: T & any): () => boolean {
   return useCallback(() => {
     return GUIStore.current.showBacklog;
+  }, [GUIStore]);
+}
+
+function useIsInFlowchart<T = any>(GUIStore: T & any): () => boolean {
+  return useCallback(() => {
+    return GUIStore.current.showFlowchart;
   }, [GUIStore]);
 }
 
@@ -295,7 +297,9 @@ function useIsPanicOverlayOpen<T = any>(GUIStore: T & any): () => boolean {
 // 验证是否在存档 / 读档 / 选项页面
 function useValidMenuPanelTag<T = any>(GUIStore: T & any): () => boolean {
   return useCallback(() => {
-    return [MenuPanelTag.Save, MenuPanelTag.Load, MenuPanelTag.Option].includes(GUIStore.current.currentMenuTag);
+    return [MenuPanelTag.Save, MenuPanelTag.Load, MenuPanelTag.Option, MenuPanelTag.Flowchart].includes(
+      GUIStore.current.currentMenuTag,
+    );
   }, [GUIStore]);
 }
 

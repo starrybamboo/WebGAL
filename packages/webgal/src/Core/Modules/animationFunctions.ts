@@ -11,11 +11,14 @@ import { pickBy } from 'lodash';
 import {
   DEFAULT_BG_IN_DURATION,
   DEFAULT_BG_OUT_DURATION,
-  DEFAULT_FIG_IN_DURATION,
-  DEFAULT_FIG_OUT_DURATION,
 } from '../constants';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { AnimationFrame } from '@/Core/Modules/animations';
+import {
+  getConfiguredFigureDefaultTransitionAnimation,
+  getConfiguredFigureDefaultTransitionDuration,
+} from '@/Core/util/figureTransitionConfig';
+import { webgalStore } from '@/store/store';
 
 // eslint-disable-next-line max-params
 export function getAnimationObject(
@@ -162,6 +165,35 @@ export function getAnimateDuration(animationName: string) {
 }
 
 // eslint-disable-next-line max-params
+function getConfiguredDefaultAnimationObject(
+  animationName: string | null,
+  target: string,
+  baseTransformOverride?: ITransform,
+) {
+  if (!animationName) {
+    return null;
+  }
+  const animation = getAnimationObject(
+    animationName,
+    target,
+    getAnimateDuration(animationName),
+    false,
+    true,
+    true,
+    true,
+    baseTransformOverride,
+  );
+  if (!animation) {
+    logger.warn('未找到配置的默认立绘动画，回退内置动画', animationName);
+    return null;
+  }
+  return {
+    duration: getAnimateDuration(animationName),
+    animation,
+  };
+}
+
+// eslint-disable-next-line max-params
 export function getEnterExitAnimation(
   target: string,
   type: 'enter' | 'exit',
@@ -172,7 +204,9 @@ export function getEnterExitAnimation(
   animation: IAnimationObject | null;
 } {
   if (type === 'enter') {
-    let duration = DEFAULT_FIG_IN_DURATION;
+    const globalGameVar = webgalStore.getState().userData.globalGameVar;
+    let duration = getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'enter');
+    const defaultAnimationName = getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'enter');
     if (isBg) {
       duration = DEFAULT_BG_IN_DURATION;
     }
@@ -188,7 +222,7 @@ export function getEnterExitAnimation(
       .animationSettings.find((setting) => setting.target === target);
     const keepOffset = animationSetting?.enterKeepOffset ?? false;
     const animationName = animationSetting?.enterAnimationName;
-    const baseTransformFromSetting = keepOffset ? animationSetting?.baseTransform : undefined;
+    const baseTransformFromSetting = animationSetting?.baseTransform;
     if (animationName) {
       logger.debug('取代默认进入动画', target);
       animation = getAnimationObject(
@@ -202,11 +236,23 @@ export function getEnterExitAnimation(
         keepOffset ? baseTransformFromSetting : undefined,
       );
       duration = getAnimateDuration(animationName);
+    } else if (!isBg) {
+      const defaultAnimation = getConfiguredDefaultAnimationObject(
+        defaultAnimationName,
+        realTarget ?? target,
+        baseTransformFromSetting,
+      );
+      if (defaultAnimation) {
+        animation = defaultAnimation.animation;
+        duration = defaultAnimation.duration;
+      }
     }
     return { duration, animation };
   } else {
     // exit
-    let duration = DEFAULT_FIG_OUT_DURATION;
+    const globalGameVar = webgalStore.getState().userData.globalGameVar;
+    let duration = getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'exit');
+    const defaultAnimationName = getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'exit');
     if (isBg) {
       duration = DEFAULT_BG_OUT_DURATION;
     }
@@ -218,19 +264,7 @@ export function getEnterExitAnimation(
     let animation: IAnimationObject | null = generateUniversalSoftOffAnimationObj(realTarget ?? target, duration);
     const animationName = animationSettings?.exitAnimationName;
     const keepOffset = animationSettings?.exitKeepOffset ?? false;
-    const baseTransformFromSetting = keepOffset
-      ? (() => {
-        const setting = animationSettings;
-        if (setting?.baseTransform) return setting.baseTransform;
-        if (target.endsWith('-off')) {
-          const originTarget = target.slice(0, -4);
-          return stageStateManager
-            .getCalculationStageState()
-            .animationSettings.find((item) => item.target === originTarget)?.baseTransform;
-        }
-        return undefined;
-      })()
-      : undefined;
+    const baseTransformFromSetting = getExitBaseTransformFromSetting(target, animationSettings);
     if (animationName) {
       logger.debug('取代默认退出动画', target);
       animation = getAnimationObject(
@@ -244,6 +278,16 @@ export function getEnterExitAnimation(
         keepOffset ? baseTransformFromSetting : undefined,
       );
       duration = getAnimateDuration(animationName);
+    } else if (!isBg) {
+      const defaultAnimation = getConfiguredDefaultAnimationObject(
+        defaultAnimationName,
+        realTarget ?? target,
+        baseTransformFromSetting,
+      );
+      if (defaultAnimation) {
+        animation = defaultAnimation.animation;
+        duration = defaultAnimation.duration;
+      }
     }
     if (animationSettings) {
       // 退出动画拿完后，删了这个设定
@@ -252,4 +296,18 @@ export function getEnterExitAnimation(
     }
     return { duration, animation };
   }
+}
+
+function getExitBaseTransformFromSetting(
+  target: string,
+  animationSettings: { baseTransform?: ITransform } | undefined,
+) {
+  if (animationSettings?.baseTransform) return animationSettings.baseTransform;
+  if (target.endsWith('-off')) {
+    const originTarget = target.slice(0, -4);
+    return stageStateManager
+      .getCalculationStageState()
+      .animationSettings.find((item) => item.target === originTarget)?.baseTransform;
+  }
+  return undefined;
 }

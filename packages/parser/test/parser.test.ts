@@ -1,7 +1,7 @@
 import SceneParser from "../src/index";
 import { ADD_NEXT_ARG_LIST, SCRIPT_CONFIG } from "../src/config/scriptConfig";
 import { expect, test } from "vitest";
-import { commandType, ISentence } from "../src/interface/sceneInterface";
+import { commandType, IAsset, ISentence } from "../src/interface/sceneInterface";
 import * as fsp from 'fs/promises';
 import { fileType } from "../src/interface/assets";
 
@@ -202,6 +202,60 @@ test("say statement", async () => {
   expect(result.sentenceList).toContainEqual(expectSentenceItem);
 });
 
+test("say statement applies asset setter to vocal named argument", async () => {
+  const parser = new SceneParser((assetList) => {
+  }, (fileName, assetType) => {
+    if (assetType === fileType.vocal) {
+      return `./game/vocal/${fileName}`;
+    }
+    return fileName;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse(`say:123 -speaker=xx -vocal=a.mp3;`, 'test', 'test');
+  const sentence = result.sentenceList[0];
+
+  expect(sentence.args).toContainEqual({ key: 'vocal', value: './game/vocal/a.mp3' });
+  expect(sentence.sentenceAssets).toContainEqual({
+    name: './game/vocal/a.mp3',
+    url: './game/vocal/a.mp3',
+    type: fileType.vocal,
+    lineNumber: 0,
+  });
+});
+
+test("scene assets are deduplicated by type and url", async () => {
+  let prefetchedAssets: IAsset[] = [];
+  const parser = new SceneParser((assetList) => {
+    prefetchedAssets = assetList;
+  }, (fileName, assetType) => {
+    return fileName;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse(`changeBg:shared.webp;
+changeFigure:shared.webp;
+changeBg:shared.webp;`, 'test', 'test');
+
+  expect(result.assetsList).toEqual([
+    { name: "shared.webp", url: 'shared.webp', type: fileType.background, lineNumber: 0 },
+    { name: "shared.webp", url: 'shared.webp', type: fileType.figure, lineNumber: 1 },
+  ]);
+  expect(prefetchedAssets).toEqual(result.assetsList);
+});
+
+test("scene assets skip entries with empty urls", async () => {
+  const parser = new SceneParser((assetList) => {
+  }, (fileName, assetType) => {
+    if (assetType === fileType.vocal) {
+      return '';
+    }
+    return fileName;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse(`say:123 -vocal=missing.mp3;`, 'test', 'test');
+
+  expect(result.assetsList).toEqual([]);
+});
+
 test("wait command", async () => {
   const parser = new SceneParser((assetList) => {
   }, (fileName, assetType) => {
@@ -267,35 +321,6 @@ test("changeBg with animation parameters", async () => {
   expect(result.sentenceList).toContainEqual(expectSentenceItem);
 });
 
-test("tuanChatMap scans map background and token avatar assets", async () => {
-  const parser = new SceneParser((assetList) => {
-  }, (fileName, assetType) => {
-    return `asset:${assetType}:${fileName}`;
-  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
-
-  const result = parser.parse([
-    `tuanChatMap:config -background=map_12.webp -rows=10 -cols=12 -gridColor=#808080 -clearTokens;`,
-    `tuanChatMap:token -roleId=14562 -row=6 -col=2 -avatar=token_role_14562.webp;`,
-  ].join('\n'), 'test', 'test');
-  const configSentence = result.sentenceList.find(item => item.command === commandType.tuanChatMap && item.content === 'config');
-  const tokenSentence = result.sentenceList.find(item => item.command === commandType.tuanChatMap && item.content === 'token');
-
-  expect(configSentence?.args).toEqual([
-    { key: 'next', value: true },
-    { key: 'background', value: 'map_12.webp' },
-    { key: 'rows', value: 10 },
-    { key: 'cols', value: 12 },
-    { key: 'gridColor', value: '#808080' },
-    { key: 'clearTokens', value: true }
-  ]);
-  expect(configSentence?.sentenceAssets).toEqual([
-    { name: 'map_12.webp', url: `asset:${fileType.background}:map_12.webp`, type: fileType.background, lineNumber: 0 }
-  ]);
-  expect(tokenSentence?.sentenceAssets).toEqual([
-    { name: 'token_role_14562.webp', url: `asset:${fileType.figure}:token_role_14562.webp`, type: fileType.figure, lineNumber: 1 }
-  ]);
-});
-
 test("inline comment is preserved on normal statement", async () => {
   const parser = new SceneParser((assetList) => {
   }, (fileName, assetType) => {
@@ -334,6 +359,25 @@ test("escaped semicolon is preserved in content and inline comment is preserved"
   expect(result.sentenceList).toContainEqual(expectSentenceItem);
 });
 
+test("inline comment preserves following semicolons", async () => {
+  const parser = new SceneParser((assetList) => {
+  }, (fileName, assetType) => {
+    return fileName;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse(`say:123; first; second; third`, 'test', 'test');
+  const expectSentenceItem: ISentence = {
+    command: commandType.say,
+    commandRaw: "say",
+    content: "123",
+    args: [],
+    sentenceAssets: [],
+    subScene: [],
+    inlineComment: "first; second; third"
+  };
+  expect(result.sentenceList).toContainEqual(expectSentenceItem);
+});
+
 test("comment-only line keeps comment in content", async () => {
   const parser = new SceneParser((assetList) => {
   }, (fileName, assetType) => {
@@ -345,6 +389,25 @@ test("comment-only line keeps comment in content", async () => {
     command: commandType.comment,
     commandRaw: "comment",
     content: "only comment here",
+    args: [{ key: 'next', value: true }],
+    sentenceAssets: [],
+    subScene: [],
+    inlineComment: ""
+  };
+  expect(result.sentenceList).toContainEqual(expectSentenceItem);
+});
+
+test("comment-only line preserves following semicolons", async () => {
+  const parser = new SceneParser((assetList) => {
+  }, (fileName, assetType) => {
+    return fileName;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse(`; first; second; third`, 'test', 'test');
+  const expectSentenceItem: ISentence = {
+    command: commandType.comment,
+    commandRaw: "comment",
+    content: "first; second; third",
     args: [{ key: 'next', value: true }],
     sentenceAssets: [],
     subScene: [],

@@ -1,7 +1,7 @@
 import { webgalStore } from '@/store/store';
 import { setGlobalVar, setUserData } from '@/store/userDataReducer';
 import { setEnableAppreciationMode } from '@/store/GUIReducer';
-import { Live2D, WebGAL } from '@/Core/WebGAL';
+import { WebGAL } from '@/Core/WebGAL';
 import { WebgalParser } from '@/Core/parser/sceneParser';
 import { getStorageAsync, setStorage } from '@/Core/controller/storage/storageController';
 import { initKey } from '@/Core/controller/storage/fastSaveLoad';
@@ -14,9 +14,9 @@ import { IGameVar } from '@/Core/Modules/stage/stageInterface';
  * 获取游戏信息
  * @param url 游戏信息路径
  */
-export const infoFetcher = (url: string) => {
+export const infoFetcher = (url: string): Promise<IGameVar> => {
   const dispatch = webgalStore.dispatch;
-  axios.get(url).then(async (r) => {
+  return axios.get(url).then(async (r) => {
     let gameConfigRaw: string = r.data;
     let gameConfig = WebgalParser.parseConfig(gameConfigRaw);
     logger.info('获取到游戏信息', gameConfig);
@@ -60,9 +60,6 @@ export const infoFetcher = (url: string) => {
           if (command === 'Enable_Appreciation') {
             dispatch(setEnableAppreciationMode(res));
           }
-          if (command === 'Legacy_Expression_Blend_Mode') {
-            Live2D.legacyExpressionBlendMode = res === true;
-          }
           if (command === 'Steam_AppID') {
             const appId = String(res);
             WebGAL.steam.initialize(appId);
@@ -72,8 +69,11 @@ export const infoFetcher = (url: string) => {
     });
 
     dispatch(setUserData({ key: 'gameConfigInit', value: gameConfigInit }));
+    await WebGAL.flowchartManager.init(WebGAL.gameKey, gameConfigInit.Enable_flowchart === true);
     // @ts-expect-error renderPromiseResolve is a global variable
     window.renderPromiseResolve();
     setStorage();
+
+    return gameConfigInit;
   });
 };
