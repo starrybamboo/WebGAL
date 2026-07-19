@@ -32,19 +32,23 @@ export function getComposedFigureDebugInfo(aliasOrPath: string) {
     input: aliasOrPath,
     candidates,
     foundAlias,
-    foundUrl: foundEntry?.url ?? '',
+    foundUrl: describeComposedFigureUrl(foundEntry?.url ?? ''),
     foundSignature: foundEntry?.signature ?? '',
     registeredAliases: Array.from(composedFigureRegistry.keys()),
   };
 }
 
 export function clearComposedFigures() {
-  for (const entry of composedFigureRegistry.values()) {
-    if (entry.url.startsWith('blob:')) {
-      URL.revokeObjectURL(entry.url);
-    }
-  }
   composedFigureRegistry.clear();
+}
+
+export function describeComposedFigureUrl(url: string) {
+  const separatorIndex = url.indexOf(';');
+  return {
+    type: separatorIndex > 5 && url.startsWith('data:') ? url.slice(5, separatorIndex) : '',
+    length: url.length,
+    prefix: url.slice(0, 48),
+  };
 }
 
 /**
@@ -115,11 +119,17 @@ export function composeFigure(sentence: ISentence): IPerform {
     compositionPromise = composeLayerUrls({ layers, width, height, mimeType, quality })
       .then((url) => {
         if (!shouldIgnoreResult) {
-          logger.info('[composeFigure] compose success, registering alias', { alias, url, signature });
+          logger.info('[composeFigure] compose success, registering alias', {
+            alias,
+            url: describeComposedFigureUrl(url),
+            signature,
+          });
           registerComposedFigure(alias, url, signature);
         } else {
-          logger.warn('[composeFigure] compose success but result ignored, revoking blob', { alias, url });
-          URL.revokeObjectURL(url);
+          logger.warn('[composeFigure] compose success but result ignored', {
+            alias,
+            url: describeComposedFigureUrl(url),
+          });
         }
       })
       .catch((error) => {
@@ -156,15 +166,10 @@ function isComposedFigureReady(alias: string, signature: string): boolean {
 }
 
 function registerComposedFigure(alias: string, url: string, signature: string) {
-  const oldEntry = composedFigureRegistry.get(alias);
-  if (oldEntry?.url.startsWith('blob:')) {
-    logger.info('[composeFigure] revoke old blob before register', { alias, oldUrl: oldEntry.url });
-    URL.revokeObjectURL(oldEntry.url);
-  }
   composedFigureRegistry.set(alias, { url, signature });
   logger.info('[composeFigure] registered aliases', {
     alias,
-    url,
+    url: describeComposedFigureUrl(url),
     signature,
     registeredAliases: Array.from(composedFigureRegistry.keys()),
   });
@@ -253,12 +258,9 @@ async function composeLayerUrls(params: {
     });
     drawLayer(ctx, image, layer);
   });
-  const blob = await canvasToBlob(canvas, params.mimeType, params.quality);
-  const url = URL.createObjectURL(blob);
+  const url = canvasToDataUrl(canvas, params.mimeType, params.quality);
   logger.info('[composeFigure] canvas export success', {
-    blobUrl: url,
-    blobType: blob.type,
-    blobSize: blob.size,
+    url: describeComposedFigureUrl(url),
     mimeType: params.mimeType,
     quality: params.quality,
   });
@@ -313,18 +315,10 @@ function loadImage(url: string): Promise<HTMLImageElement> {
   });
 }
 
-function canvasToBlob(canvas: HTMLCanvasElement, mimeType: string, quality: number | undefined): Promise<Blob> {
-  return new Promise((resolve, reject) => {
-    canvas.toBlob(
-      (blob) => {
-        if (blob) {
-          resolve(blob);
-        } else {
-          reject(new Error(`Failed to export composed figure as ${mimeType}`));
-        }
-      },
-      mimeType,
-      quality,
-    );
-  });
+function canvasToDataUrl(canvas: HTMLCanvasElement, mimeType: string, quality: number | undefined): string {
+  const dataUrl = canvas.toDataURL(mimeType, quality);
+  if (!dataUrl.startsWith('data:image/')) {
+    throw new Error(`Failed to export composed figure as ${mimeType}`);
+  }
+  return dataUrl;
 }

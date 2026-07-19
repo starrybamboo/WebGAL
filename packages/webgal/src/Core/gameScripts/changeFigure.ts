@@ -13,7 +13,11 @@ import { baseBlinkParam, baseFocusParam, BlinkParam, FocusParam } from '@/Core/l
 import { WEBGAL_NONE } from '../constants';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { parseTransformFrame } from './parseTransformFrame';
-import { getComposedFigureDebugInfo, getComposedFigureUrl } from '@/Core/gameScripts/composeFigure';
+import {
+  describeComposedFigureUrl,
+  getComposedFigureDebugInfo,
+  getComposedFigureUrl,
+} from '@/Core/gameScripts/composeFigure';
 import {
   getConfiguredFigureDefaultTransitionAnimation,
   getConfiguredFigureDefaultTransitionDuration,
@@ -41,7 +45,7 @@ export function changeFigure(sentence: ISentence): IPerform {
       logger.info('[changeFigure composite] resolved composed alias', {
         rawContent: sentence.content,
         normalizedContent: content,
-        composedUrl,
+        composedUrl: describeComposedFigureUrl(composedUrl),
       });
       content = composedUrl;
     } else {
