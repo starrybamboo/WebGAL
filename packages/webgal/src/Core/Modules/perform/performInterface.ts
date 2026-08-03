@@ -25,8 +25,6 @@ export interface IPerform {
   blockingStateCalculation?: () => boolean;
   // 实时预览快进时，允许无需用户输入的异步状态演算先完成，再继续快进。
   resolveStateCalculation?: () => Promise<void>;
-  // 未 commit 的演出被丢弃时，将它的终态同步到演算状态
-  settleStateOnDiscard?: () => void;
   // 演出自然结束或被卸载后触发内部继续推进；推进前仍会等待 blockingNext 解除。
   goNextWhenOver?: boolean;
   // 跳过由 nextSentence/continueSentence 引发的非 hold 演出回收。

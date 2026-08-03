@@ -1,4 +1,3 @@
-import { generateUniversalSoftInAnimationObj } from '@/Core/controller/stage/pixi/animations/universalSoftIn';
 import { logger } from '@/Core/util/logger';
 import { generateUniversalSoftOffAnimationObj } from '@/Core/controller/stage/pixi/animations/universalSoftOff';
 import cloneDeep from 'lodash/cloneDeep';
@@ -6,12 +5,8 @@ import { baseTransform, ITransform } from '@/Core/Modules/stage/stageInterface';
 import { generateTimelineObj } from '@/Core/controller/stage/pixi/animations/timeline';
 import { WebGAL } from '@/Core/WebGAL';
 import PixiStage, { IAnimationObject } from '@/Core/controller/stage/pixi/PixiController';
-import { IUserAnimation } from './animations';
 import { pickBy } from 'lodash';
-import {
-  DEFAULT_BG_IN_DURATION,
-  DEFAULT_BG_OUT_DURATION,
-} from '../constants';
+import { DEFAULT_BG_OUT_DURATION } from '../constants';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { AnimationFrame } from '@/Core/Modules/animations';
 import {
@@ -27,7 +22,6 @@ export function getAnimationObject(
   duration: number,
   writeDefault: boolean,
   writeFullEffect = true,
-  syncEndStateToStageState = true,
   keepOffset = false,
   baseTransformOverride?: ITransform,
 ) {
@@ -40,7 +34,7 @@ export function getAnimationObject(
     baseTransformOverride,
   );
   if (mappedEffects) {
-    return generateTimelineObj(mappedEffects, target, duration, syncEndStateToStageState);
+    return generateTimelineObj(mappedEffects, target, duration);
   }
   return null;
 }
@@ -50,8 +44,17 @@ export function applyAnimationEndState(
   target: string,
   writeDefault: boolean,
   writeFullEffect = true,
+  keepOffset = false,
+  baseTransformOverride?: ITransform,
 ) {
-  const mappedEffects = getAnimationTimeline(animationName, target, writeDefault, writeFullEffect);
+  const mappedEffects = getAnimationTimeline(
+    animationName,
+    target,
+    writeDefault,
+    writeFullEffect,
+    keepOffset,
+    baseTransformOverride,
+  );
   if (!mappedEffects || mappedEffects.length === 0) return null;
   const { duration, ease, ...endState } = mappedEffects[mappedEffects.length - 1];
   stageStateManager.updateEffect({ target, transform: endState });
@@ -164,138 +167,60 @@ export function getAnimateDuration(animationName: string) {
   return 0;
 }
 
-// eslint-disable-next-line max-params
-function getConfiguredDefaultAnimationObject(
-  animationName: string | null,
+/**
+ * 取退出动画。
+ *
+ * 入场动画不在这里产出：它由 changeFigure/changeBg 作为普通演出返回，
+ * 终态在演算期写入 effects，因此不需要视图层反推该播哪个动画。
+ */
+export function getExitAnimation(
   target: string,
-  baseTransformOverride?: ITransform,
-) {
-  if (!animationName) {
-    return null;
-  }
-  const animation = getAnimationObject(
-    animationName,
-    target,
-    getAnimateDuration(animationName),
-    false,
-    true,
-    true,
-    true,
-    baseTransformOverride,
-  );
-  if (!animation) {
-    logger.warn('未找到配置的默认立绘动画，回退内置动画', animationName);
-    return null;
-  }
-  return {
-    duration: getAnimateDuration(animationName),
-    animation,
-  };
-}
-
-// eslint-disable-next-line max-params
-export function getEnterExitAnimation(
-  target: string,
-  type: 'enter' | 'exit',
   isBg = false,
   realTarget?: string, // 用于立绘和背景移除时，以当前时间打上特殊标记
 ): {
   duration: number;
   animation: IAnimationObject | null;
 } {
-  if (type === 'enter') {
-    const globalGameVar = webgalStore.getState().userData.globalGameVar;
-    let duration = getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'enter');
-    const defaultAnimationName = getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'enter');
-    if (isBg) {
-      duration = DEFAULT_BG_IN_DURATION;
-    }
-    duration =
-      stageStateManager.getCalculationStageState().animationSettings.find((setting) => setting.target === target)
-        ?.enterDuration ??
-      duration;
-    // 走默认动画
-    let animation: IAnimationObject | null = generateUniversalSoftInAnimationObj(realTarget ?? target, duration);
-
-    const animationSetting = stageStateManager
-      .getCalculationStageState()
-      .animationSettings.find((setting) => setting.target === target);
-    const keepOffset = animationSetting?.enterKeepOffset ?? false;
-    const animationName = animationSetting?.enterAnimationName;
-    const baseTransformFromSetting = animationSetting?.baseTransform;
-    if (animationName) {
-      logger.debug('取代默认进入动画', target);
-      animation = getAnimationObject(
-        animationName,
-        realTarget ?? target,
-        getAnimateDuration(animationName),
-        false,
-        true,
-        true,
-        keepOffset,
-        keepOffset ? baseTransformFromSetting : undefined,
-      );
-      duration = getAnimateDuration(animationName);
-    } else if (!isBg) {
-      const defaultAnimation = getConfiguredDefaultAnimationObject(
-        defaultAnimationName,
-        realTarget ?? target,
-        baseTransformFromSetting,
-      );
-      if (defaultAnimation) {
-        animation = defaultAnimation.animation;
-        duration = defaultAnimation.duration;
-      }
-    }
-    return { duration, animation };
-  } else {
-    // exit
-    const globalGameVar = webgalStore.getState().userData.globalGameVar;
-    let duration = getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'exit');
-    const defaultAnimationName = getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'exit');
-    if (isBg) {
-      duration = DEFAULT_BG_OUT_DURATION;
-    }
-    const animationSettings = stageStateManager
-      .getCalculationStageState()
-      .animationSettings.find((setting) => setting.target === target || `${setting.target}-off` === target);
-    duration = animationSettings?.exitDuration ?? duration;
-    // 走默认动画
-    let animation: IAnimationObject | null = generateUniversalSoftOffAnimationObj(realTarget ?? target, duration);
-    const animationName = animationSettings?.exitAnimationName;
-    const keepOffset = animationSettings?.exitKeepOffset ?? false;
+  const globalGameVar = webgalStore.getState().userData.globalGameVar;
+  let duration = isBg
+    ? DEFAULT_BG_OUT_DURATION
+    : getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'exit');
+  const configuredAnimationName = isBg
+    ? null
+    : getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'exit');
+  const animationSettings = stageStateManager
+    .getCalculationStageState()
+    .animationSettings.find((setting) => setting.target === target);
+  duration = animationSettings?.exitDuration ?? duration;
+  // 走默认动画
+  let animation: IAnimationObject | null = generateUniversalSoftOffAnimationObj(realTarget ?? target, duration);
+  const animationName = animationSettings?.exitAnimationName ?? configuredAnimationName;
+  if (animationName) {
+    logger.debug('取代默认退出动画', target);
+    const keepOffset = animationSettings?.exitKeepOffset ?? configuredAnimationName === animationName;
     const baseTransformFromSetting = getExitBaseTransformFromSetting(target, animationSettings);
-    if (animationName) {
-      logger.debug('取代默认退出动画', target);
-      animation = getAnimationObject(
-        animationName,
-        realTarget ?? target,
-        getAnimateDuration(animationName),
-        false,
-        true,
-        true,
-        keepOffset,
-        keepOffset ? baseTransformFromSetting : undefined,
-      );
+    const configuredAnimation = getAnimationObject(
+      animationName,
+      realTarget ?? target,
+      getAnimateDuration(animationName),
+      false,
+      !(animationSettings?.exitAnimationIgnoreDefault ?? false),
+      keepOffset,
+      keepOffset ? baseTransformFromSetting : undefined,
+    );
+    if (configuredAnimation) {
+      animation = configuredAnimation;
       duration = getAnimateDuration(animationName);
-    } else if (!isBg) {
-      const defaultAnimation = getConfiguredDefaultAnimationObject(
-        defaultAnimationName,
-        realTarget ?? target,
-        baseTransformFromSetting,
-      );
-      if (defaultAnimation) {
-        animation = defaultAnimation.animation;
-        duration = defaultAnimation.duration;
-      }
+    } else {
+      logger.warn('未找到配置的默认立绘动画，回退内置动画', animationName);
     }
-    if (animationSettings) {
-      // 退出动画拿完后，删了这个设定
-      stageStateManager.removeAnimationSettingsByTargetOff(animationSettings.target);
-      logger.debug('删除退出动画设定', target);
-    }
-    return { duration, animation };
   }
+  if (animationSettings) {
+    // 退出动画拿完后，删了这个设定
+    stageStateManager.removeAnimationSettingsByTargetOff(target);
+    logger.debug('删除退出动画设定', target);
+  }
+  return { duration, animation };
 }
 
 function getExitBaseTransformFromSetting(

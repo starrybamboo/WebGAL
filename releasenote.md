@@ -8,35 +8,29 @@
 
 #### 新功能
 
-新增流程图功能。玩家可以在菜单或底部控制栏查看已解锁的剧情节点，并跳转回已解锁的场景。
+新增场景调用传值。调用场景时可以传入数据，被调用的场景可以提前结束并把结果返回给调用处。
 
-流程图支持多条线路、节点解锁记录和未解锁节点显示控制，重置游戏数据时会一并清理流程图进度。
+新增只在当前场景内有效的变量，场景结束后自动消失。
 
-优化编辑器实时预览。调整背景、立绘、Spine、Live2D 和特效时，预览定位与实际画面更一致，快速切换预览目标时同步结果更稳定。
+立绘新增左侧 1/4、左侧 1/3、右侧 1/3、右侧 1/4 四个位置，对话时的立绘高亮同样支持。
 
-优化读档、回到流程图节点和自动继续时的画面与声音恢复，减少状态不一致。
+较长的语句可以分成多行书写，效果与写成一行相同。
+
+支持 opus 格式的音频。
+
+优化动画衔接。登场动画与后续动画的过渡更自然，同一对象上后写的动画会覆盖先写的动画，快进预览的效果与实际游玩一致。
 
 #### 修复
 
-修复打开 Backlog 后自动播放仍可能继续推进的问题。
+修复流程图中未解锁的支线仍会显示的问题。
 
-修复播放 Backlog 语音时，多个回想语音或当前游戏语音可能同时播放的问题。
+修复对话中出现方括号时后续文字可能不显示的问题。
 
-修复视频播放失败时流程可能卡住，以及 skipOff 视频仍可被双击跳过的问题。
+修复效果设置填写不完整时画面可能停止刷新的问题。
 
-修复 next 连续执行中接场景跳转时，后续流程可能失效的问题。
+修复快进预览时连续执行的语句画面效果可能不正确的问题。
 
-修复场景跳转目标异常时可能加载无效场景文件的问题。
-
-修复 bgm:none 无法正确停止背景音乐的问题。
-
-修复 changeBg / changeFigure / setTransform 的变换参数为空或格式异常时，动画表现可能不正确的问题。
-
-修复自定义文本框模板中的已读文本样式部分不生效的问题。
-
-修复脚本注释包含多个分号时后续内容丢失的问题。
-
-修复资源预加载可能重复处理同一资源，或包含无效空路径资源的问题。
+修复部分变量名取值结果不正确的问题。
 
 <!-- English Translation -->
 ## Release Notes
@@ -49,35 +43,29 @@
 
 #### New Features
 
-Added the flowchart feature. Players can view unlocked story nodes from the menu or bottom control panel and jump back to unlocked scenes.
+Added value passing for scene calls. Data can be passed into a called scene, and a called scene can end early and return a result to the caller.
 
-Flowcharts support multiple routes, node unlock progress, and locked-node visibility controls; resetting game data now also clears flowchart progress.
+Added variables that are valid only inside the current scene and disappear when the scene ends.
 
-Improved editor live preview. When adjusting backgrounds, figures, Spine, Live2D, and effects, preview positioning is closer to the actual screen, and synchronization is more stable when switching preview targets quickly.
+Added four figure positions: left 1/4, left 1/3, right 1/3, and right 1/4, also supported by dialogue figure highlighting.
 
-Improved screen and audio restoration after loading saves, returning to flowchart nodes, or continuing automatically, reducing state mismatches.
+Longer statements can be written across several lines, with the same result as writing them on one line.
+
+Added support for opus audio.
+
+Improved animation transitions. Entrance animations flow more naturally into following animations, a later animation on the same object replaces the earlier one, and fast preview matches actual playback.
 
 #### Fixes
 
-Fixed autoplay possibly continuing after opening the Backlog.
+Fixed locked routes still being shown in the flowchart.
 
-Fixed multiple backlog voices, or backlog voice and current game voice, playing at the same time.
+Fixed text after a square bracket in dialogue possibly not being displayed.
 
-Fixed video playback failures possibly blocking progress, and fixed skipOff videos still being skippable by double-clicking.
+Fixed the screen possibly stopping updates when an effect setting is incomplete.
 
-Fixed follow-up flow possibly failing when a next chain leads into a scene jump.
+Fixed incorrect on-screen results for statements running in a row during fast preview.
 
-Fixed abnormal scene jump targets possibly loading invalid scene files.
-
-Fixed bgm:none not stopping background music correctly.
-
-Fixed incorrect animation behavior when changeBg / changeFigure / setTransform receive empty or malformed transform arguments.
-
-Fixed some read-text styles in custom textbox templates not taking effect.
-
-Fixed script comments losing content after additional semicolons.
-
-Fixed resource preloading possibly processing the same resource repeatedly or including invalid empty resource paths.
+Fixed some variable names returning incorrect values.
 
 <!-- Japanese Translation -->
 ## リリースノート
@@ -90,32 +78,26 @@ Fixed resource preloading possibly processing the same resource repeatedly or in
 
 #### 新機能
 
-フローチャート機能を追加しました。プレイヤーはメニューまたは下部コントロールから解放済みのストーリーノードを確認し、解放済みのシーンへ戻れるようになります。
+シーン呼び出しの値の受け渡しを追加しました。呼び出すシーンにデータを渡せるほか、呼び出されたシーンは途中で終了して結果を呼び出し元に返せます。
 
-フローチャートは複数ルート、ノード解放状態、未解放ノードの表示制御に対応しました。ゲームデータをリセットすると、フローチャートの進行状況も一緒に削除されます。
+現在のシーンの中だけで有効な変数を追加しました。シーンが終わると自動的に消えます。
 
-エディターのリアルタイムプレビューを改善しました。背景、立ち絵、Spine、Live2D、エフェクトを調整する際、プレビュー上の位置が実際の画面により近くなり、プレビュー対象を素早く切り替えた時の同期も安定しました。
+立ち絵の位置に左 1/4、左 1/3、右 1/3、右 1/4 を追加しました。会話時の立ち絵ハイライトも対応しています。
 
-ロード、フローチャートノードへの復帰、自動継続時の画面と音声の復元を改善し、状態のずれを減らしました。
+長い文を複数行に分けて書けるようになりました。1 行で書いた場合と結果は同じです。
+
+opus 形式の音声に対応しました。
+
+アニメーションの繋がりを改善しました。登場アニメーションから次のアニメーションへの移行が自然になり、同じ対象では後から指定したアニメーションが前のものを置き換え、早送りプレビューが実際のプレイと一致します。
 
 #### 修正
 
-バックログを開いた後もオート再生が進み続ける場合がある問題を修正しました。
+フローチャートで未解放のルートが表示される問題を修正しました。
 
-バックログ音声が複数同時に再生されたり、ゲーム内の現在のボイスと重なって再生されたりする問題を修正しました。
+会話に角括弧が含まれると、その後の文字が表示されないことがある問題を修正しました。
 
-動画の再生に失敗した時に進行が止まる場合がある問題と、skipOff の動画をダブルクリックでスキップできてしまう問題を修正しました。
+演出の設定が不完全な場合に、画面の更新が止まることがある問題を修正しました。
 
-next の連続実行中にシーン移動が続くと、その後の進行が失敗する場合がある問題を修正しました。
+早送りプレビューで連続して実行される文の画面表示が正しくないことがある問題を修正しました。
 
-異常なシーン移動先によって無効なシーンファイルが読み込まれる場合がある問題を修正しました。
-
-bgm:none で BGM が正しく停止しない問題を修正しました。
-
-changeBg / changeFigure / setTransform の変換引数が空、または不正な形式の場合に、アニメーション表示が正しくならない問題を修正しました。
-
-カスタムテキストボックステンプレートの既読テキストスタイルが一部反映されない問題を修正しました。
-
-スクリプトコメントに複数のセミコロンが含まれると、後続の内容が失われる問題を修正しました。
-
-リソースのプリロードで同じリソースが重複処理されたり、無効な空パスのリソースが含まれたりする問題を修正しました。
+一部の変数名で値が正しく取得できない問題を修正しました。

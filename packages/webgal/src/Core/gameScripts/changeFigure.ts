@@ -1,13 +1,24 @@
 import { ISentence } from '@/Core/controller/scene/sceneInterface';
 import { IPerform } from '@/Core/Modules/perform/performInterface';
 import cloneDeep from 'lodash/cloneDeep';
-import { getBooleanArgByKey, getNumberArgByKey, getStringArgByKey } from '@/Core/util/getSentenceArg';
-import { baseTransform, IFreeFigure, IStageState, ITransform } from '@/Core/Modules/stage/stageInterface';
+import {
+  getBooleanArgByKey,
+  getFigurePositionFromArgs,
+  getNumberArgByKey,
+  getStringArgByKey,
+} from '@/Core/util/getSentenceArg';
+import {
+  baseTransform,
+  figureStateKeyByPosition,
+  IFreeFigure,
+  ITransform,
+} from '@/Core/Modules/stage/stageInterface';
 import { AnimationFrame, IUserAnimation } from '@/Core/Modules/animations';
 import { generateTransformAnimationObj } from '@/Core/controller/stage/pixi/animations/generateTransformAnimationObj';
+import { generateTimelineObj } from '@/Core/controller/stage/pixi/animations/timeline';
 import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import { logger } from '@/Core/util/logger';
-import { applyAnimationEndState, getAnimateDuration, getEnterExitAnimation } from '@/Core/Modules/animationFunctions';
+import { applyAnimationEndState, getAnimateDuration } from '@/Core/Modules/animationFunctions';
 import { WebGAL } from '@/Core/WebGAL';
 import { baseBlinkParam, baseFocusParam, BlinkParam, FocusParam } from '@/Core/live2DCore';
 import { WEBGAL_NONE } from '../constants';
@@ -33,21 +44,7 @@ export function changeFigure(sentence: ISentence): IPerform {
     content = '';
   }
   // 根据参数设置指定位置
-  let pos: 'center' | 'left' | 'right' = 'center';
-  let mouthAnimationKey = 'mouthAnimation';
-  let eyesAnimationKey = 'blinkAnimation';
-  const leftFromArgs = getBooleanArgByKey(sentence, 'left') ?? false;
-  const rightFromArgs = getBooleanArgByKey(sentence, 'right') ?? false;
-  if (leftFromArgs) {
-    pos = 'left';
-    mouthAnimationKey = 'mouthAnimationLeft';
-    eyesAnimationKey = 'blinkAnimationLeft';
-  }
-  if (rightFromArgs) {
-    pos = 'right';
-    mouthAnimationKey = 'mouthAnimationRight';
-    eyesAnimationKey = 'blinkAnimationRight';
-  }
+  const pos = getFigurePositionFromArgs(sentence) || 'center';
 
   // id 与 自由立绘
   let key = getStringArgByKey(sentence, 'id') ?? '';
@@ -166,27 +163,15 @@ export function changeFigure(sentence: ISentence): IPerform {
         isUrlChanged = false;
       }
     }
-  } else {
-    if (pos === 'center') {
-      if (stageStateManager.getCalculationStageState().figName === content) {
-        isUrlChanged = false;
-      }
-    }
-    if (pos === 'left') {
-      if (stageStateManager.getCalculationStageState().figNameLeft === content) {
-        isUrlChanged = false;
-      }
-    }
-    if (pos === 'right') {
-      if (stageStateManager.getCalculationStageState().figNameRight === content) {
-        isUrlChanged = false;
-      }
-    }
+  } else if (stageStateManager.getCalculationStageState()[figureStateKeyByPosition[pos]] === content) {
+    isUrlChanged = false;
   }
   /**
    * 处理 Effects
    */
   if (isUrlChanged) {
+    // 必须先卸载旧的动画演出：它的 stopFunction 会写回终态，晚于清空 effects 会把旧变换复活
+    WebGAL.gameplay.performController.unmountPerform(`animation-${id}`, true);
     stageStateManager.removeEffectByTargetId(id);
     stageStateManager.removeAnimationSettingsByTarget(id);
     if (stageStateManager.getCalculationStageState().speakingFigureKey === id) {
@@ -197,55 +182,34 @@ export function changeFigure(sentence: ISentence): IPerform {
       oldStageObject.isExiting = true;
     }
   }
-  const setAnimationNames = (key: string, sentence: ISentence) => {
+  const setAnimationNames = (targetKey: string) => {
     // 如果立绘被关闭了，那么就不用设置了
     if (content === '') {
       return;
     }
     const existingSetting = stageStateManager
       .getCalculationStageState()
-      .animationSettings.find((setting) => setting.target === key);
+      .animationSettings.find((setting) => setting.target === targetKey);
     const existingEnterAnimationName = existingSetting?.enterAnimationName;
     const hasKeepOffsetEnter = existingSetting?.enterKeepOffset ?? false;
-    const shouldUseConfiguredDefaultEnterAnimation = !!configuredDefaultEnterAnimation && !enterAnimation;
+    const configuredDefaultEnterAnimationAvailable =
+      !!configuredDefaultEnterAnimation &&
+      WebGAL.animationManager.getAnimations().some((animation) => animation.name === configuredDefaultEnterAnimation);
+    const shouldUseConfiguredDefaultEnterAnimation = configuredDefaultEnterAnimationAvailable && !enterAnimation;
     const shouldGenerateEnterAnimation =
       !shouldUseConfiguredDefaultEnterAnimation && (!existingEnterAnimationName || !hasKeepOffsetEnter || !!enterAnimation);
     let didSetEnterAnimation = false;
-    // 处理 transform 和 默认 transform
-    let animationObj: AnimationFrame[];
-    if (transformString) {
-      console.log(transformString);
-      try {
-        const frame = JSON.parse(transformString) as AnimationFrame;
-        const baseTransformForOffset = buildTransformFromFrame(frame);
-        stageStateManager.updateAnimationSettings({ target: key, key: 'baseTransform', value: baseTransformForOffset });
-        if (shouldGenerateEnterAnimation) {
-          animationObj = generateTransformAnimationObj(key, frame, duration, ease);
-          // 因为是切换，必须把一开始的 alpha 改为 0
-          animationObj[0].alpha = 0;
-          const animationName = (Math.random() * 10).toString(16);
-          const newAnimation: IUserAnimation = { name: animationName, effects: animationObj };
-          WebGAL.animationManager.addAnimation(newAnimation);
-          duration = getAnimateDuration(animationName);
-          didSetEnterAnimation = true;
-          stageStateManager.updateAnimationSettings({ target: key, key: 'enterAnimationName', value: animationName });
-        }
-      } catch (e) {
-        // 解析都错误了，歇逼吧
-        applyDefaultTransform();
-      }
-    } else {
-      applyDefaultTransform();
-    }
+    const frame = transformString ? parseTransformFrame(transformString) : null;
+    const transformFrame = frame ?? ({} as AnimationFrame);
+    const baseTransformForOffset = frame ? buildTransformFromFrame(frame) : cloneDeep(baseTransform);
+    stageStateManager.updateAnimationSettings({
+      target: targetKey,
+      key: 'baseTransform',
+      value: baseTransformForOffset,
+    });
 
-    function applyDefaultTransform() {
-      stageStateManager.updateAnimationSettings({ target: key, key: 'baseTransform', value: cloneDeep(baseTransform) });
-      if (!shouldGenerateEnterAnimation) {
-        return;
-      }
-      // 应用默认的
-      const frame = {};
-      animationObj = generateTransformAnimationObj(key, frame as AnimationFrame, duration, ease);
+    if (shouldGenerateEnterAnimation) {
+      const animationObj = generateTransformAnimationObj(targetKey, transformFrame, duration, ease, !ignoreDefault);
       // 因为是切换，必须把一开始的 alpha 改为 0
       animationObj[0].alpha = 0;
       const animationName = (Math.random() * 10).toString(16);
@@ -253,26 +217,48 @@ export function changeFigure(sentence: ISentence): IPerform {
       WebGAL.animationManager.addAnimation(newAnimation);
       duration = getAnimateDuration(animationName);
       didSetEnterAnimation = true;
-      stageStateManager.updateAnimationSettings({ target: key, key: 'enterAnimationName', value: animationName });
+      stageStateManager.updateAnimationSettings({ target: targetKey, key: 'enterAnimationName', value: animationName });
     }
 
+    stageStateManager.updateAnimationSettings({
+      target: targetKey,
+      key: 'enterAnimationIgnoreDefault',
+      value: ignoreDefault,
+    });
+
     if (enterAnimation) {
-      stageStateManager.updateAnimationSettings({ target: key, key: 'enterAnimationName', value: enterAnimation });
+      stageStateManager.updateAnimationSettings({ target: targetKey, key: 'enterAnimationName', value: enterAnimation });
       duration = getAnimateDuration(enterAnimation);
       didSetEnterAnimation = true;
+    } else if (shouldUseConfiguredDefaultEnterAnimation && configuredDefaultEnterAnimation) {
+      stageStateManager.updateAnimationSettings({
+        target: targetKey,
+        key: 'enterAnimationName',
+        value: configuredDefaultEnterAnimation,
+      });
+      stageStateManager.updateAnimationSettings({ target: targetKey, key: 'enterKeepOffset', value: true });
+      duration = getAnimateDuration(configuredDefaultEnterAnimation);
+      didSetEnterAnimation = true;
+    } else if (configuredDefaultEnterAnimation && !configuredDefaultEnterAnimationAvailable) {
+      logger.warn('未找到配置的默认立绘动画，回退内置动画', configuredDefaultEnterAnimation);
     }
     if (exitAnimation) {
-      stageStateManager.updateAnimationSettings({ target: key, key: 'exitAnimationName', value: exitAnimation });
+      stageStateManager.updateAnimationSettings({ target: targetKey, key: 'exitAnimationName', value: exitAnimation });
+      stageStateManager.updateAnimationSettings({
+        target: targetKey,
+        key: 'exitAnimationIgnoreDefault',
+        value: ignoreDefault,
+      });
       duration = getAnimateDuration(exitAnimation);
     }
     if (!didSetEnterAnimation && existingEnterAnimationName) {
       duration = getAnimateDuration(existingEnterAnimationName);
     }
     if (enterDuration >= 0) {
-      stageStateManager.updateAnimationSettings({ target: key, key: 'enterDuration', value: enterDuration });
+      stageStateManager.updateAnimationSettings({ target: targetKey, key: 'enterDuration', value: enterDuration });
     }
     if (exitDuration >= 0) {
-      stageStateManager.updateAnimationSettings({ target: key, key: 'exitDuration', value: exitDuration });
+      stageStateManager.updateAnimationSettings({ target: targetKey, key: 'exitDuration', value: exitDuration });
     }
   };
 
@@ -280,8 +266,6 @@ export function changeFigure(sentence: ISentence): IPerform {
     if (isUrlChanged) {
       // 当 url 发生变化时，即发生新立绘替换
       // 应当赋予一些参数以默认值，防止从旧立绘的状态获取数据
-      // 并且关闭一些 hold 动画
-      WebGAL.gameplay.performController.unmountPerform(`animation-${key}`, true);
       bounds = bounds ?? [0, 0, 0, 0];
       blink = blink ?? cloneDeep(baseBlinkParam);
       focus = focus ?? cloneDeep(baseFocusParam);
@@ -317,76 +301,70 @@ export function changeFigure(sentence: ISentence): IPerform {
     }
   }
 
-  const animateExistingFigure = (targetKey: string) => {
-    if (isUrlChanged) return;
-    if (WebGAL.gameplay.isFast) return;
-    const setting = stageStateManager
-      .getCalculationStageState()
-      .animationSettings.find((item) => item.target === targetKey);
-    const shouldAnimate =
-      !!transformString || !!enterAnimation || !!exitAnimation || !!setting?.enterAnimationName || !!setting?.exitAnimationName;
-    if (!shouldAnimate) return;
-    const stageObj = WebGAL.gameplay.pixiStage?.getStageObjByKey(targetKey);
-    if (!stageObj) return;
-    const { duration: enterAnimationDuration, animation } = getEnterExitAnimation(targetKey, 'enter');
-    if (!animation || enterAnimationDuration <= 0) return;
-    const animationKey = `${targetKey}-manual-enter-${Date.now()}`;
-    WebGAL.gameplay.pixiStage?.stopPresetAnimationOnTarget(targetKey);
-    WebGAL.gameplay.pixiStage?.registerAnimation(animation, animationKey, targetKey);
-    setTimeout(() => {
-      WebGAL.gameplay.pixiStage?.removeAnimationWithSetEffects(animationKey);
-    }, enterAnimationDuration);
-    duration = enterAnimationDuration;
-  };
-
   if (isFreeFigure) {
     /**
      * 下面的代码是设置自由立绘的
      */
     const freeFigureItem: IFreeFigure = { key, name: content, basePosition: pos };
-    setAnimationNames(key, sentence);
+    setAnimationNames(key);
     postFigureStateSet();
     stageStateManager.setFreeFigureByKey(freeFigureItem);
-    animateExistingFigure(key);
   } else {
     /**
      * 下面的代码是设置与位置关联的立绘的
      */
-    const positionMap = {
-      center: 'fig-center',
-      left: 'fig-left',
-      right: 'fig-right',
-    };
-    const dispatchMap: Record<string, keyof IStageState> = {
-      center: 'figName',
-      left: 'figNameLeft',
-      right: 'figNameRight',
-    };
-
-    key = positionMap[pos];
-    setAnimationNames(key, sentence);
+    key = `fig-${pos}`;
+    setAnimationNames(key);
     postFigureStateSet();
-    stageStateManager.setStage(dispatchMap[pos], content);
-    animateExistingFigure(key);
+    stageStateManager.setStage(figureStateKeyByPosition[pos], content);
   }
 
+  /**
+   * 入场动画
+   *
+   * 终态在演算期写入 effects，演出只负责视觉过渡，因此不需要任何延迟结算。
+   * 与 setTransform 共用 `animation-${key}` 演出名，同目标的动画冲突由演出去重统一裁决。
+   */
+  const enterAnimationSetting = stageStateManager
+    .getCalculationStageState()
+    .animationSettings.find((setting) => setting.target === key);
+  const shouldAnimateExistingFigure =
+    !isUrlChanged &&
+    !WebGAL.gameplay.isFast &&
+    (!!transformString ||
+      !!enterAnimation ||
+      !!exitAnimation ||
+      !!enterAnimationSetting?.enterAnimationName ||
+      !!enterAnimationSetting?.exitAnimationName);
+  const shouldPlayEnterAnimation = content !== '' && (isUrlChanged || shouldAnimateExistingFigure);
+  const enterAnimationName = enterAnimationSetting?.enterAnimationName;
+  const enterAnimationTimeline = shouldPlayEnterAnimation && enterAnimationName
+    ? applyAnimationEndState(
+        enterAnimationName,
+        key,
+        false,
+        !(enterAnimationSetting?.enterAnimationIgnoreDefault ?? false),
+        enterAnimationSetting?.enterKeepOffset ?? false,
+        enterAnimationSetting?.enterKeepOffset ? enterAnimationSetting.baseTransform : undefined,
+      )
+    : null;
+  const enterAnimationDuration = enterAnimationName ? getAnimateDuration(enterAnimationName) : 0;
+  if (enterAnimationTimeline) {
+    duration = enterAnimationDuration;
+  }
+  const enterAnimationKey = `${key}-softin`;
+
   return {
-    performName: `enter-${key}`,
+    performName: shouldPlayEnterAnimation ? `animation-${key}` : `enter-${key}`,
     duration,
     isHoldOn: false,
-    settleStateOnDiscard: () => {
-      if (content === '' || !isUrlChanged) {
-        return;
-      }
-      const animationName = stageStateManager
-        .getCalculationStageState()
-        .animationSettings.find((setting) => setting.target === key)?.enterAnimationName;
-      if (animationName) {
-        applyAnimationEndState(animationName, key, false);
-      }
+    startFunction: () => {
+      if (!enterAnimationTimeline || WebGAL.gameplay.skipAnimation) return;
+      const animationObject = generateTimelineObj(enterAnimationTimeline, key, enterAnimationDuration);
+      WebGAL.gameplay.pixiStage?.registerAnimation(animationObject, enterAnimationKey, key);
     },
     stopFunction: () => {
-      WebGAL.gameplay.pixiStage?.stopPresetAnimationOnTarget(key);
+      WebGAL.gameplay.pixiStage?.removeAnimation(enterAnimationKey);
     },
     blockingNext: () => false,
     blockingAuto: () => true,

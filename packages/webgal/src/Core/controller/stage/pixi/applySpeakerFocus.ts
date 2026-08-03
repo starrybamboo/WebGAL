@@ -1,5 +1,9 @@
-import { STAGE_KEYS } from '@/Core/constants';
-import type { IEffect, IStageState } from '@/Core/Modules/stage/stageInterface';
+import {
+  FIGURE_POSITIONS,
+  figureStateKeyByPosition,
+  type IEffect,
+  type IStageState,
+} from '@/Core/Modules/stage/stageInterface';
 import { WebGAL } from '@/Core/WebGAL';
 
 const DEFAULT_SPEAKING_BRIGHTNESS_MULTIPLIER = 1;
@@ -59,14 +63,10 @@ export function applySpeakerFocusToPixi(
 function getActiveFigureKeys(stageState: IStageState) {
   const figureKeys: string[] = [];
 
-  if (stageState.figNameLeft) {
-    figureKeys.push(STAGE_KEYS.FIG_L);
-  }
-  if (stageState.figName) {
-    figureKeys.push(STAGE_KEYS.FIG_C);
-  }
-  if (stageState.figNameRight) {
-    figureKeys.push(STAGE_KEYS.FIG_R);
+  for (const position of FIGURE_POSITIONS) {
+    if (stageState[figureStateKeyByPosition[position]]) {
+      figureKeys.push(`fig-${position}`);
+    }
   }
 
   for (const figure of stageState.freeFigure) {

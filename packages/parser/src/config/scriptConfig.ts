@@ -40,6 +40,7 @@ export const SCRIPT_CONFIG = [
   { scriptString: 'wait', scriptType: commandType.wait },
   { scriptString: 'callSteam', scriptType: commandType.callSteam },
   { scriptString: 'tuanChatMap', scriptType: commandType.tuanChatMap },
+  { scriptString: 'return', scriptType: commandType.return },
 ];
 export const ADD_NEXT_ARG_LIST = [
   commandType.bgm,
