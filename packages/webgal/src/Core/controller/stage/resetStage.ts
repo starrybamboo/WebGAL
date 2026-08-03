@@ -2,7 +2,6 @@ import cloneDeep from 'lodash/cloneDeep';
 import { WebGAL } from '@/Core/WebGAL';
 import { initState, stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { stopFast } from '@/Core/controller/gamePlay/fastSkip';
-import { clearComposedFigures } from '@/Core/gameScripts/composeFigure';
 
 export interface ResetStageOptions {
   commitStageState?: boolean;
@@ -26,8 +25,6 @@ export const resetStage = (resetBacklog: boolean, resetSceneAndVar = true, optio
   stopFast();
   WebGAL.gameplay.performController.removeAllPerform();
   WebGAL.gameplay.resetGamePlay();
-  clearComposedFigures();
-
   // 清空舞台状态表
   const initSceneDataCopy = cloneDeep(initState);
   const currentVars = stageStateManager.getCalculationStageState().GameVar;

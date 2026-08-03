@@ -32,9 +32,6 @@ export const assetsScanner = (
       }
     });
   }
-  if (command === commandType.composeFigure) {
-    returnAssetsList.push(...scanComposeFigureLayers(args, lineNumber, assetSetter));
-  }
   if (command === commandType.tuanChatMap) {
     returnAssetsList.push(...scanTuanChatMapAssets(args, lineNumber, assetSetter));
   }
@@ -50,7 +47,7 @@ export const assetsScanner = (
       type: fileType.background,
     });
   }
-  if (command === commandType.changeFigure && !hasBooleanArg(args, 'composite')) {
+  if (command === commandType.changeFigure) {
     returnAssetsList.push({
       name: content,
       url: content,
@@ -86,10 +83,6 @@ export const assetsScanner = (
 };
 
 
-function hasBooleanArg(args: Array<arg>, key: string): boolean {
-  return args.some((argItem) => argItem.key === key && argItem.value === true);
-}
-
 function scanTuanChatMapAssets(args: Array<arg>, lineNumber: number, assetSetter?: AssetSetter): Array<IAsset> {
   const assets: Array<IAsset> = [];
   const background = getStringArg(args, 'background');
@@ -123,39 +116,4 @@ function resolveTypedAssetUrl(value: string, type: fileType, assetSetter?: Asset
     return value;
   }
   return assetSetter(value, type);
-}
-
-function scanComposeFigureLayers(args: Array<arg>, lineNumber: number, assetSetter?: AssetSetter): Array<IAsset> {
-  return collectComposeFigureLayerSources(args).map((layer) => ({
-    name: layer,
-    url: resolveFigureLayerAssetUrl(layer, assetSetter),
-    lineNumber,
-    type: fileType.figure,
-  }));
-}
-
-function resolveFigureLayerAssetUrl(layer: string, assetSetter?: AssetSetter): string {
-  if (!assetSetter || layer.match(/^(https?:|data:|blob:|\.\/|\/)/)) {
-    return layer;
-  }
-  return assetSetter(layer, fileType.figure);
-}
-
-function collectComposeFigureLayerSources(args: Array<arg>): string[] {
-  const layers: string[] = [];
-  const baseArg = args.find((argItem) => argItem.key === 'base');
-  if (typeof baseArg?.value === 'string') {
-    const base = normalizeLayerSegment(baseArg.value);
-    if (base) layers.push(base);
-  }
-  for (const layerArg of args.filter((argItem) => argItem.key === 'layer')) {
-    if (typeof layerArg.value !== 'string') continue;
-    const layer = normalizeLayerSegment(layerArg.value.split(',')[0] ?? '');
-    if (layer) layers.push(layer);
-  }
-  return layers;
-}
-
-function normalizeLayerSegment(value: string): string {
-  return value.trim().replace(/^['"]|['"]$/g, '');
 }

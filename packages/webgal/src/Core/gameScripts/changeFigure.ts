@@ -14,11 +14,6 @@ import { WEBGAL_NONE } from '../constants';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { parseTransformFrame } from './parseTransformFrame';
 import {
-  describeComposedFigureUrl,
-  getComposedFigureDebugInfo,
-  getComposedFigureUrl,
-} from '@/Core/gameScripts/composeFigure';
-import {
   getConfiguredFigureDefaultTransitionAnimation,
   getConfiguredFigureDefaultTransitionDuration,
 } from '@/Core/util/figureTransitionConfig';
@@ -37,22 +32,6 @@ export function changeFigure(sentence: ISentence): IPerform {
   if (getBooleanArgByKey(sentence, 'clear')) {
     content = '';
   }
-  if (getBooleanArgByKey(sentence, 'composite')) {
-    const debugInfo = getComposedFigureDebugInfo(content);
-    logger.info('[changeFigure composite] lookup composed alias', debugInfo);
-    const composedUrl = getComposedFigureUrl(content);
-    if (composedUrl) {
-      logger.info('[changeFigure composite] resolved composed alias', {
-        rawContent: sentence.content,
-        normalizedContent: content,
-        composedUrl: describeComposedFigureUrl(composedUrl),
-      });
-      content = composedUrl;
-    } else {
-      logger.error(`未找到合成立绘：${content}`, debugInfo);
-    }
-  }
-
   // 根据参数设置指定位置
   let pos: 'center' | 'left' | 'right' = 'center';
   let mouthAnimationKey = 'mouthAnimation';

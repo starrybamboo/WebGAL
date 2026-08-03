@@ -298,6 +298,29 @@ test("changeFigure with duration and animation args", async () => {
   expect(result.sentenceList).toContainEqual(expectSentenceItem);
 });
 
+test("unknown script is treated as ordinary dialogue", async () => {
+  const parser = new SceneParser((assetList) => {
+  }, (fileName, assetType) => {
+    return fileName;
+  }, ADD_NEXT_ARG_LIST, SCRIPT_CONFIG);
+
+  const result = parser.parse(`legacyScript:legacy -base=body.png -layer=face.png;`, 'test', 'test');
+
+  expect(result.sentenceList[0]).toEqual({
+    command: commandType.say,
+    commandRaw: "legacyScript",
+    content: "legacy",
+    args: [
+      { key: "speaker", value: "legacyScript" },
+      { key: "base", value: "body.png" },
+      { key: "layer", value: "face.png" },
+    ],
+    sentenceAssets: [],
+    subScene: [],
+    inlineComment: "",
+  });
+});
+
 test("changeBg with animation parameters", async () => {
   const parser = new SceneParser((assetList) => {
   }, (fileName, assetType) => {

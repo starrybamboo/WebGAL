@@ -39,7 +39,6 @@ export const SCRIPT_CONFIG = [
   { scriptString: 'applyStyle', scriptType: commandType.applyStyle },
   { scriptString: 'wait', scriptType: commandType.wait },
   { scriptString: 'callSteam', scriptType: commandType.callSteam },
-  { scriptString: 'composeFigure', scriptType: commandType.composeFigure },
   { scriptString: 'tuanChatMap', scriptType: commandType.tuanChatMap },
 ];
 export const ADD_NEXT_ARG_LIST = [
@@ -57,7 +56,6 @@ export const ADD_NEXT_ARG_LIST = [
   commandType.setTransition,
   commandType.applyStyle,
   commandType.callSteam,
-  commandType.composeFigure,
 ];
 
 export type ConfigMap = Map<string, ConfigItem>;

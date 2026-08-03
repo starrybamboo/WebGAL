@@ -10,7 +10,6 @@ import { changeFigure } from '@/Core/gameScripts/changeFigure';
 import { changeSceneScript } from '@/Core/gameScripts/changeSceneScript';
 import { choose } from '@/Core/gameScripts/choose';
 import { comment } from '@/Core/gameScripts/comment';
-import { composeFigure } from '@/Core/gameScripts/composeFigure';
 import { tuanChatMap } from '@/Core/gameScripts/tuanChatMap';
 import { filmMode } from '@/Core/gameScripts/filmMode';
 import { getUserInput } from '@/Core/gameScripts/getUserInput';
@@ -76,7 +75,6 @@ export const SCRIPT_TAG_MAP = defineScripts({
   applyStyle: ScriptConfig(commandType.applyStyle, applyStyle, { next: true }),
   wait: ScriptConfig(commandType.wait, wait),
   callSteam: ScriptConfig(commandType.callSteam, callSteam, { next: true }),
-  composeFigure: ScriptConfig(commandType.composeFigure, composeFigure, { next: true }),
   tuanChatMap: ScriptConfig(commandType.tuanChatMap, tuanChatMap),
 });
 
