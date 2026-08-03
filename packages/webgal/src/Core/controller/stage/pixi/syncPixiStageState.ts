@@ -1,6 +1,6 @@
 import type { IEffect, IFigurePosition, IStageState, ITransform } from '@/Core/Modules/stage/stageInterface';
 import { FIGURE_KEYS, FIGURE_POSITIONS, figureStateKeyByPosition } from '@/Core/Modules/stage/stageInterface';
-import type { IResolvedStageCommitOptions } from '@/Core/Modules/stage/stageStateManager';
+import { stageStateManager, type IResolvedStageCommitOptions } from '@/Core/Modules/stage/stageStateManager';
 import { DEFAULT_BG_IN_DURATION, DEFAULT_BG_OUT_DURATION, DEFAULT_FIG_IN_DURATION } from '@/Core/constants';
 import { WebGAL } from '@/Core/WebGAL';
 import type { IStageObject } from '@/Core/controller/stage/pixi/PixiController';
@@ -8,6 +8,9 @@ import { getAnimateDuration, getExitAnimation } from '@/Core/Modules/animationFu
 import { logger } from '@/Core/util/logger';
 import { setEbg } from '@/Core/gameScripts/changeBg/setEbg';
 import { applyTransformToPixiContainer } from '@/Core/controller/stage/pixi/stageEffectTransform';
+import { CharacterStageSync } from '@/Core/character/characterStageSync';
+import { characterFigureService } from '@/Core/character/characterFigureService';
+import { clearCharacterPresentation, playCharacterPresentation } from '@/Core/character/characterPresentationRuntime';
 
 interface ISyncFigureSlotPayload {
   key: string;
@@ -15,6 +18,39 @@ interface ISyncFigureSlotPayload {
   position: IFigurePosition;
   skipAnimation: boolean;
 }
+
+const characterStageSync = new CharacterStageSync(characterFigureService, {
+  replaceFigure: ({ key, sourceUrl, position }) => {
+    const pixiStage = WebGAL.gameplay.pixiStage;
+    if (!pixiStage) return;
+    clearCharacterPresentation(key);
+    const currentFigure = pixiStage.getStageObjByKey(key);
+    if (currentFigure) {
+      removeFig(currentFigure, `${key}-softin`, WebGAL.gameplay.skipAnimation);
+    }
+    pixiStage.addFigure(key, sourceUrl, position);
+  },
+  removeFigure: (key) => {
+    clearCharacterPresentation(key);
+    const currentFigure = WebGAL.gameplay.pixiStage?.getStageObjByKey(key);
+    if (currentFigure) {
+      removeFig(currentFigure, `${key}-softin`, WebGAL.gameplay.skipAnimation);
+    }
+  },
+  hasFigure: (key) => !!WebGAL.gameplay.pixiStage?.getStageObjByKey(key),
+  getPresentationKey: (key) => {
+    const state = stageStateManager.getViewStageState();
+    return JSON.stringify(state.animationSettings.find((item) => item.target === key));
+  },
+  applyPresentation: (key) => {
+    const state = stageStateManager.getViewStageState();
+    const setting = state.animationSettings.find((item) => item.target === key);
+    const effect = state.effects.find((item) => item.target === key);
+    applyStageEffectToTarget(key, effect?.transform);
+    playCharacterPresentation(key, setting);
+  },
+  reportError: (message, error) => logger.error(message, error),
+});
 
 /**
  * 取入场过渡时长。
@@ -38,6 +74,10 @@ export function syncPixiStageState(stageState: IStageState, options: IResolvedSt
   }
   if (options.applyPixiEffects) {
     applyStageEffects(stageState.effects);
+  }
+  if (options.syncPixiStage) {
+    // 已存在角色的入场/变换必须在通用终态同步后启动，避免首帧被 effects 立即覆盖。
+    characterStageSync.sync(stageState.characters ?? []);
   }
 }
 
@@ -110,11 +150,12 @@ function syncFigures(stageState: IStageState, skipAnimation: boolean) {
   const currentFigures = WebGAL.gameplay.pixiStage?.getFigureObjects();
   if (!currentFigures) return;
   const freeFigureKeys = new Set(stageState.freeFigure.map((fig) => fig.key));
+  const characterKeys = new Set((stageState.characters ?? []).map((character) => character.key));
   for (const existFigure of [...currentFigures]) {
     if (FIGURE_KEYS.includes(existFigure.key) || existFigure.key.endsWith('-off')) {
       continue;
     }
-    if (!freeFigureKeys.has(existFigure.key)) {
+    if (!freeFigureKeys.has(existFigure.key) && !characterKeys.has(existFigure.key)) {
       removeFig(existFigure, `${existFigure.key}-softin`, skipAnimation);
     }
   }

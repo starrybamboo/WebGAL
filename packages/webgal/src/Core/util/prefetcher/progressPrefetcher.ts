@@ -1,6 +1,7 @@
 import { IScene } from '@/Core/controller/scene/sceneInterface';
 import { assetsPrefetcher } from '@/Core/util/prefetcher/assetsPrefetcher';
 import { scenePrefetcher } from '@/Core/util/prefetcher/scenePrefetcher';
+import { prefetchCharactersByProgress } from '@/Core/util/prefetcher/characterPrefetcher';
 import { WebGAL } from '@/Core/WebGAL';
 
 const PROGRESS_ASSET_LOOKAHEAD = 20;
@@ -43,6 +44,7 @@ export const prefetchSceneByProgress = (scene: IScene, currentSentenceId: number
   const startLine = Math.max(0, currentSentenceId);
   const nextAssets = uniqueAssetsByUrl(scene, startLine, PROGRESS_ASSET_LOOKAHEAD);
   const nextSubScenes = uniqueSubScenes(scene, startLine, PROGRESS_SUB_SCENE_LOOKAHEAD);
+  prefetchCharactersByProgress(scene, startLine, PROGRESS_ASSET_LOOKAHEAD);
   if (nextAssets.length > 0) {
     assetsPrefetcher(nextAssets, { ignoreLineGate: true });
   }

@@ -49,8 +49,7 @@ character: yuki/summer_uniform,face_smile -left;
 15. 作为引擎维护者，我希望过期的异步组合结果不能覆盖同一角色的最新请求，以便快进和连续换装时舞台状态保持正确。
 16. 作为引擎维护者，我希望组合完成后只向 figure 系统交付普通图像，以便不复制现有立绘渲染、变换和动画实现。
 17. 作为既有游戏作者，我希望原有 `changeFigure`、普通图片、Live2D 和 Spine 行为保持不变，以便现有剧本无需迁移。
-18. 作为 Terre 作者，我希望编辑器能够维护角色模板并生成 `character` 命令，以便作者无需手写易错的模板和组合选择符。
-19. 作为测试维护者，我希望能从一条完整 `character` 场景语句验证角色状态和 figure 交付结果，以便测试外部行为而不是内部缓存或 Canvas 调用细节。
+18. 作为测试维护者，我希望能从一条完整 `character` 场景语句验证角色状态和 figure 交付结果，以便测试外部行为而不是内部缓存或 Canvas 调用细节。
 
 ## Implementation Decisions（实现决策）
 
@@ -73,7 +72,6 @@ character: yuki/summer_uniform,face_smile -left;
 - `components.<group>.<variant>` 作为后续局部部件切换的模板扩展方向。首期不定义局部切换命令，也不在运行时维护独立可演出的部件树。
 - 既有 `changeFigure` 继续处理普通图片、Live2D、Spine 和旧剧本，不承担正式角色组合语法。
 - 私有 `composeFigure` Demo、`-composite` 参数及其专用解析、缓存和测试不进入主分支兼容范围，可以删除。
-- Terre 需要能够识别和生成 `character` 命令，并提供角色模板的编辑、校验和预览能力；具体交付批次以角色模板 ABI 稳定为前提。
 
 ## Testing Decisions（测试决策）
 
@@ -87,7 +85,6 @@ character: yuki/summer_uniform,face_smile -left;
 - 缓存测试通过重复发起同键请求观察只产生一个外部合成结果；失败请求不得成为永久失败缓存，后续请求可以重试。
 - figure 边界测试验证角色模板 JSON 从未传入普通 figure 资源解析，而合成结果以普通图片进入现有立绘路径。
 - 兼容性测试覆盖既有 `changeFigure` 图片、Live2D 和 Spine 语句，确认新增命令不改变原有解析和运行时行为。
-- Terre 测试覆盖模板校验、组合预览和生成的 `character` 语句能够被引擎解析；不依赖编辑器内部组件层级。
 
 ## Out of Scope（非目标）
 
@@ -99,7 +96,7 @@ character: yuki/summer_uniform,face_smile -left;
 - 首期的部件级独立演出、局部替换命令、口型、眨眼和运行时部件树。
 - 同名角色的多个舞台实例，以及通过旧 `changeFigure` 或私有 `composeFigure` 入口创建正式组合角色。
 - 对无效手写模板进行隐式修复或尽力兼容。
-- 运行时文件监听，以及自动发现 Terre 外直接替换的部件文件。
+- 运行时文件监听，以及自动发现引擎外直接替换的部件文件。
 - 把共享规则包、Node 指纹工具或资源指纹算法作为首期交付的硬性前提。
 
 ## Further Notes（补充说明）
@@ -107,5 +104,4 @@ character: yuki/summer_uniform,face_smile -left;
 - 本规格覆盖 Issue #1010 正文中与后续仓库成员评论冲突的方向：组合入口由 `changeFigure` 改为 `character`，舞台对象由位置或 figure ID 改为角色，持久化缓存退出首期范围，读档恢复不再等待组合完成。
 - 评论中的 `character: yuki -preset=summer_uniform -left;` 是方向示例；后续讨论确定正式书写采用 `character: yuki/summer_uniform,xxx,yyy -left;`。
 - `components.<group>.<variant>` 只承诺模板演进方向。默认变体、局部切换参数、组内互斥规则和缓存键扩展需要后续单独规格。
-- 建议 WebGAL 与 Terre 共享模板校验、组合选择符解析、预设展开和缓存输入规范化规则。版本化纯 TypeScript 规则包与 Node 校验/指纹工具仍是建议，不是本规格的强制实现方式。
 - 本地维护分支与 WebGAL 主分支并不完全一致。实施时只删除与私有 `composeFigure` Demo 和 `-composite` 参数直接相关的代码，不自动删除其他私有功能。

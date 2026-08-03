@@ -90,6 +90,7 @@ export const scriptExecutor = (depth = 0, options: ScriptExecutionOptions = {}) 
    */
   const structuredArgKeys = new Map<commandType, Set<string>>([
     [commandType.changeFigure, new Set(['transform', 'blink', 'focus'])],
+    [commandType.character, new Set(['transform', 'blink', 'focus'])],
     [commandType.changeBg, new Set(['transform'])],
   ]);
 

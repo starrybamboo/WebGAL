@@ -1,3 +1,5 @@
+/// <reference types="vitest" />
+
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import loadVersion from 'vite-plugin-package-version';
@@ -29,5 +31,25 @@ export default defineConfig({
   },
   build: {
     // sourcemap: true,
+  },
+  test: {
+    setupFiles: ['./src/test/setup.ts'],
+    coverage: {
+      provider: 'c8',
+      all: true,
+      include: [
+        'src/Core/character/characterFigureService.ts',
+        'src/Core/character/characterImageComposer.ts',
+        'src/Core/character/characterPresentation.ts',
+        'src/Core/character/characterStageSync.ts',
+        'src/Core/character/characterTemplate.ts',
+        'src/Core/gameScripts/character.ts',
+        'src/Core/util/prefetcher/characterPrefetcher.ts',
+      ],
+      lines: 70,
+      branches: 70,
+      functions: 70,
+      statements: 70,
+    },
   },
 });

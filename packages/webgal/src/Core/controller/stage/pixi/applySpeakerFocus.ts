@@ -75,6 +75,10 @@ function getActiveFigureKeys(stageState: IStageState) {
     }
   }
 
+  for (const character of stageState.characters ?? []) {
+    figureKeys.push(character.key);
+  }
+
   return figureKeys;
 }
 

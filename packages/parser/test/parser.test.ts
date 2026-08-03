@@ -333,6 +333,45 @@ test("changeFigure with duration and animation args", async () => {
   expectSentenceIn(result.sentenceList, expectSentenceItem);
 });
 
+test("character preserves its selector and figure args without scanning a figure asset", () => {
+  const assetSetterCalls: Array<{ fileName: string; assetType: fileType }> = [];
+  const parser = new SceneParser(
+    () => undefined,
+    (fileName, assetType) => {
+      assetSetterCalls.push({ fileName, assetType });
+      return `./game/figure/${fileName}`;
+    },
+    ADD_NEXT_ARG_LIST,
+    SCRIPT_CONFIG,
+  );
+
+  const result = parser.parse(
+    `character:yuki/body -left -duration=1000 -enter=fadeIn -transform={"alpha":0.8};`,
+    'test',
+    'test',
+  );
+
+  expect(result.sentenceList[0]).toEqual({
+    command: commandType.character,
+    commandRaw: 'character',
+    content: 'yuki/body',
+    args: [
+      { key: 'left', value: true },
+      { key: 'duration', value: 1000 },
+      { key: 'enter', value: 'fadeIn' },
+      { key: 'transform', value: '{"alpha":0.8}' },
+    ],
+    sentenceAssets: [],
+    subScene: [],
+    inlineComment: '',
+    startLine: 0,
+    endLine: 0,
+    isLineBreakHolder: false,
+  });
+  expect(assetSetterCalls).toEqual([]);
+  expect(result.assetsList).toEqual([]);
+});
+
 test("unknown script is treated as ordinary dialogue", async () => {
   const parser = new SceneParser((assetList) => {
   }, (fileName, assetType) => {

@@ -48,6 +48,7 @@ export const initState: IStageState = {
   figNameLeft14: '',
   figNameRight14: '',
   freeFigure: [],
+  characters: [],
   figureAssociatedAnimation: [],
   isRead: false,
   showText: '',
@@ -134,11 +135,11 @@ export class StageStateManager {
   }
 
   public replaceCalculationStageState(stageState: IStageState) {
-    this.calculationStageState = cloneDeep(stageState);
+    this.calculationStageState = cloneStageState(stageState);
   }
 
   public replaceAllStageState(stageState: IStageState, options?: IStageCommitOptions) {
-    this.calculationStageState = cloneDeep(stageState);
+    this.calculationStageState = cloneStageState(stageState);
     this.commit(options);
   }
 
@@ -158,6 +159,7 @@ export class StageStateManager {
       STAGE_KEYS.BGMAIN,
       ...FIGURE_KEYS,
       ...state.freeFigure.map((figure) => figure.key),
+      ...state.characters.map((character) => character.key),
     ];
     if (!activeTargets.includes(target)) return;
 
@@ -408,3 +410,10 @@ export class StageStateManager {
 }
 
 export const stageStateManager = new StageStateManager();
+
+function cloneStageState(stageState: IStageState): IStageState {
+  const clonedState = cloneDeep(stageState);
+  // 旧存档和旧 Backlog 没有角色管理字段，统一在整态替换入口兼容。
+  clonedState.characters = Array.isArray(clonedState.characters) ? clonedState.characters : [];
+  return clonedState;
+}

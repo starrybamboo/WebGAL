@@ -43,6 +43,7 @@ export enum commandType {
   dice,
   tuanChatMap, // 团剧共创地图
   return, // 从被调用的场景返回
+  character, // 管理静态组合角色
 }
 
 /**
