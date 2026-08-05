@@ -1,13 +1,13 @@
 import { expect, test } from 'vitest';
 import { commandType, ISentence } from '@/Core/controller/scene/sceneInterface';
-import { IStageCharacter } from '@/Core/Modules/stage/stageInterface';
 import { character } from '@/Core/gameScripts/character';
 import { CharacterFigureService } from './characterFigureService';
-import { CharacterStageSync } from './characterStageSync';
+import { CharacterFigureSourceSync } from './characterFigureSourceSync';
+import { collectCharacterFigureTargets } from './characterFigureSource';
 import SceneParser, { ADD_NEXT_ARG_LIST, SCRIPT_CONFIG } from '../../../../parser/src';
 import { initState, stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 
-test('a character sentence records logical state and later delivers one ordinary image without blocking', async () => {
+test('a character sentence records a Figure source and later delivers one ordinary image without blocking', async () => {
   stageStateManager.resetCalculationStageState(initState);
   let finishComposition: (sourceUrl: string) => void = () => undefined;
   const compositionReady = new Promise<string>((resolve) => {
@@ -31,7 +31,7 @@ test('a character sentence records logical state and later delivers one ordinary
     },
     compose: async () => compositionReady,
   });
-  const stageSync = new CharacterStageSync(figureService, {
+  const stageSync = new CharacterFigureSourceSync(figureService, {
     replaceFigure: (figure) => deliveredFigures.push(figure),
     removeFigure: () => undefined,
     getPresentationKey: (key) => JSON.stringify(
@@ -62,18 +62,18 @@ test('a character sentence records logical state and later delivers one ordinary
   expect(sentence.command).toBe(commandType.character);
 
   const perform = character(sentence);
-  const characters: IStageCharacter[] = stageStateManager.getCalculationStageState().characters;
+  const stageState = stageStateManager.getCalculationStageState();
+  const targets = collectCharacterFigureTargets(stageState);
   expect(perform.blockingNext()).toBe(false);
-  expect(characters).toEqual([
+  expect(targets).toEqual([
     {
-      name: 'yuki',
-      key: 'character-yuki',
-      items: ['body'],
+      key: 'fig-left',
       position: 'left',
+      source: { name: 'yuki', items: ['body'] },
     },
   ]);
 
-  stageSync.sync(characters);
+  stageSync.sync(targets);
   expect(loadedTemplateUrls).toEqual(['./game/figure/yuki/figure.json']);
   expect(deliveredFigures).toEqual([]);
 
@@ -83,12 +83,13 @@ test('a character sentence records logical state and later delivers one ordinary
 
   expect(deliveredFigures).toEqual([
     {
-      key: 'character-yuki',
+      key: 'fig-left',
       sourceUrl: 'data:image/png;base64,composed-character',
       position: 'left',
     },
   ]);
-  expect(deliveredPresentations).toEqual([{ key: 'character-yuki', duration: 720, alpha: 0.8, zIndex: 4 }]);
-  expect(JSON.stringify(characters)).not.toContain('data:image');
-  expect(JSON.stringify(characters)).not.toContain('figure.json');
+  expect(deliveredPresentations).toEqual([{ key: 'fig-left', duration: 720, alpha: 0.8, zIndex: 4 }]);
+  expect(JSON.stringify(stageState)).not.toContain('data:image');
+  expect(JSON.stringify(stageState)).not.toContain('figure.json');
+  expect('characters' in stageState).toBe(false);
 });

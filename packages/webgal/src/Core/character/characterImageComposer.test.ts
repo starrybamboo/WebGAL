@@ -34,6 +34,25 @@ describe('character image composition', () => {
     expect(result).toBe('data:test,RB./GGG');
   });
 
+  test('draws exact width and height non-uniformly and clips at the composite canvas boundary', async () => {
+    const result = await composeCharacterImage(
+      {
+        canvas: { width: 4, height: 3 },
+        layers: [
+          { name: 'base', src: 'base.webp', x: 0, y: 0 },
+          { name: 'face', src: 'face.webp', x: 2, y: 1, width: 4, height: 1 },
+        ],
+      },
+      'https://game.example/game/figure/yuki/figure.json',
+      createRasterDependencies({
+        'base.webp': { color: 'R', width: 2, height: 3 },
+        'face.webp': { color: 'B', width: 1, height: 2 },
+      }),
+    );
+
+    expect(result).toBe('data:test,RR../RRBB/RR..');
+  });
+
   test('a failed composition can be retried after the resource is fixed', async () => {
     const rasterDependencies = createRasterDependencies({
       'body.webp': { color: 'R', width: 1, height: 1 },

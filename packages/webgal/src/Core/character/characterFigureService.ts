@@ -6,6 +6,7 @@ import {
 } from './characterTemplate';
 import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import { composeCharacterImage } from './characterImageComposer';
+import type { ICharacterFigureSource } from './characterFigureSource';
 
 export interface ICharacterFigureServiceDependencies {
   getTemplateUrl: (characterName: string) => string;
@@ -17,10 +18,7 @@ export interface ICharacterFigureServiceDependencies {
   schedulePrewarm?: (task: () => void) => () => void;
 }
 
-export interface ICharacterFigureRequest {
-  name: string;
-  items: string[];
-}
+export type ICharacterFigureRequest = ICharacterFigureSource;
 
 export class CharacterFigureService {
   // 模板与成功组合跟随当前游戏进程；失败任务会被移除，进行中任务只保留到 settle。

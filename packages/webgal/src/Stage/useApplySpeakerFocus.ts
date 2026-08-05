@@ -18,7 +18,6 @@ export function useApplySpeakerFocus(stageState: IStageState, enabled: boolean) 
     stageState.figNameLeft,
     stageState.figNameRight,
     stageState.freeFigure,
-    stageState.characters,
     stageState.PerformList,
     stageState.speakingFigureKey,
   ]);

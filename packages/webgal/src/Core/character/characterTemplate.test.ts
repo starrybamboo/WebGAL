@@ -102,7 +102,7 @@ describe('character template rules', () => {
     ).toThrowError(/预设 empty.*不能为空/);
   });
 
-  test('defaults an omitted component scale to one in the public composition plan', () => {
+  test('preserves original-size mode when component dimensions are omitted', () => {
     const composition = resolveCharacterTemplateSelection(
       {
         Version: 1,
@@ -115,7 +115,28 @@ describe('character template rules', () => {
       ['body'],
     );
 
-    expect(composition.layers).toEqual([{ name: 'body', src: 'body.webp', x: 6, y: -9, scale: 1 }]);
+    expect(composition.layers).toEqual([{ name: 'body', src: 'body.webp', x: 6, y: -9 }]);
+  });
+
+  test('preserves exact width and height through direct and preset expansion', () => {
+    const template: ICharacterTemplate = {
+      Version: 1,
+      canvas: { width: 1200, height: 1600 },
+      components: {
+        face: { src: 'face.webp', x: 24, y: 36, width: 320, height: 180 },
+      },
+      presets: {
+        appearance: ['face'],
+      },
+    };
+
+    const direct = resolveCharacterTemplateSelection(template, ['face']);
+    const preset = resolveCharacterTemplateSelection(template, ['appearance']);
+
+    expect(direct.layers).toEqual([
+      { name: 'face', src: 'face.webp', x: 24, y: 36, width: 320, height: 180 },
+    ]);
+    expect(preset.layers).toEqual(direct.layers);
   });
 
   test('rejects component resources that escape the character directory', () => {
@@ -222,7 +243,7 @@ describe('character template rules', () => {
         },
         ['body'],
       ),
-    ).toThrowError(/角色部件 broken.*x、y、scale/);
+    ).toThrowError(/角色部件 broken.*x、y 必须是有限数值/);
   });
 
   test('rejects missing references anywhere in the declared presets', () => {
@@ -285,11 +306,15 @@ describe('character template rules', () => {
   });
 
   test.each([
-    ['x', { src: 'body.webp', x: Number.POSITIVE_INFINITY, y: 0, scale: 1 }],
-    ['y', { src: 'body.webp', x: 0, y: Number.NaN, scale: 1 }],
-    ['scale', { src: 'body.webp', x: 0, y: 0, scale: 0 }],
-    ['scale', { src: 'body.webp', x: 0, y: 0, scale: null as unknown as number }],
-  ])('rejects an invalid component %s value', (_field, component) => {
+    ['x', { src: 'body.webp', x: Number.POSITIVE_INFINITY, y: 0, scale: 1 }, /x、y 必须是有限数值/],
+    ['y', { src: 'body.webp', x: 0, y: Number.NaN, scale: 1 }, /x、y 必须是有限数值/],
+    ['scale', { src: 'body.webp', x: 0, y: 0, scale: 0 }, /scale 必须是有限正数/],
+    [
+      'scale',
+      { src: 'body.webp', x: 0, y: 0, scale: null as unknown as number },
+      /scale 必须是有限正数/,
+    ],
+  ])('rejects an invalid component %s value', (_field, component, expectedMessage) => {
     expect(() =>
       resolveCharacterTemplateSelection(
         {
@@ -300,7 +325,41 @@ describe('character template rules', () => {
         },
         ['body'],
       ),
-    ).toThrowError(/x、y、scale 必须是有效数值，且 scale 大于 0/);
+    ).toThrowError(expectedMessage);
+  });
+
+  test.each([
+    ['only width', { src: 'body.webp', x: 0, y: 0, width: 320 }, /width、height 必须成对提供/],
+    ['only height', { src: 'body.webp', x: 0, y: 0, height: 180 }, /width、height 必须成对提供/],
+    [
+      'mixed scale and exact dimensions',
+      { src: 'body.webp', x: 0, y: 0, scale: 1, width: 320, height: 180 },
+      /scale 不能与 width、height 同时提供/,
+    ],
+    ['zero width', { src: 'body.webp', x: 0, y: 0, width: 0, height: 180 }, /width、height 必须是有限正数/],
+    [
+      'negative height',
+      { src: 'body.webp', x: 0, y: 0, width: 320, height: -1 },
+      /width、height 必须是有限正数/,
+    ],
+    [
+      'non-finite width',
+      { src: 'body.webp', x: 0, y: 0, width: Number.POSITIVE_INFINITY, height: 180 },
+      /width、height 必须是有限正数/,
+    ],
+    ['non-finite scale', { src: 'body.webp', x: 0, y: 0, scale: Number.NaN }, /scale 必须是有限正数/],
+  ])('rejects invalid component size mode: %s', (_name, component, expectedMessage) => {
+    expect(() =>
+      resolveCharacterTemplateSelection(
+        {
+          Version: 1,
+          canvas: { width: 1600, height: 3000 },
+          components: { body: component },
+          presets: {},
+        },
+        ['body'],
+      ),
+    ).toThrowError(expectedMessage);
   });
 
   test('resolves an own preset whose name also exists on Object.prototype', () => {

@@ -13,6 +13,8 @@ export interface ICharacterComponent {
   x: number;
   y: number;
   scale?: number;
+  width?: number;
+  height?: number;
 }
 
 export interface ICharacterTemplate {
@@ -24,7 +26,6 @@ export interface ICharacterTemplate {
 
 export interface ICharacterCompositionLayer extends ICharacterComponent {
   name: string;
-  scale: number;
 }
 
 export interface ICharacterComposition {
@@ -75,7 +76,7 @@ export function resolveCharacterTemplateSelection(
   const expandItem = (name: string): void => {
     if (hasOwn(template.components, name)) {
       const component = template.components[name];
-      layers.push({ name, ...component, scale: component.scale === undefined ? 1 : component.scale });
+      layers.push(normalizeCompositionLayer(name, component));
       return;
     }
     if (hasOwn(template.presets, name)) {
@@ -162,10 +163,36 @@ function validateComponent(name: string, component: ICharacterComponent) {
     throw new CharacterTemplateError(`角色部件 ${name} 缺少有效的 src`);
   }
   validateCharacterComponentPath(component.src);
-  const scale = component.scale === undefined ? 1 : component.scale;
-  if (![component.x, component.y, scale].every(Number.isFinite) || scale <= 0) {
-    throw new CharacterTemplateError(`角色部件 ${name} 的 x、y、scale 必须是有效数值，且 scale 大于 0`);
+  if (![component.x, component.y].every(Number.isFinite)) {
+    throw new CharacterTemplateError(`角色部件 ${name} 的 x、y 必须是有限数值`);
   }
+
+  const hasScale = component.scale !== undefined;
+  const hasWidth = component.width !== undefined;
+  const hasHeight = component.height !== undefined;
+  if (hasScale && (hasWidth || hasHeight)) {
+    throw new CharacterTemplateError(`角色部件 ${name} 的 scale 不能与 width、height 同时提供`);
+  }
+  if (hasWidth !== hasHeight) {
+    throw new CharacterTemplateError(`角色部件 ${name} 的 width、height 必须成对提供`);
+  }
+  if (hasScale && !isFinitePositiveNumber(component.scale)) {
+    throw new CharacterTemplateError(`角色部件 ${name} 的 scale 必须是有限正数`);
+  }
+  if (hasWidth && (!isFinitePositiveNumber(component.width) || !isFinitePositiveNumber(component.height))) {
+    throw new CharacterTemplateError(`角色部件 ${name} 的 width、height 必须是有限正数`);
+  }
+}
+
+function normalizeCompositionLayer(name: string, component: ICharacterComponent): ICharacterCompositionLayer {
+  const layer = { name, src: component.src, x: component.x, y: component.y };
+  if (component.scale !== undefined) {
+    return { ...layer, scale: component.scale };
+  }
+  if (component.width !== undefined && component.height !== undefined) {
+    return { ...layer, width: component.width, height: component.height };
+  }
+  return layer;
 }
 
 export function validateCharacterComponentPath(componentPath: string): void {
@@ -194,6 +221,10 @@ export function validateCharacterComponentPath(componentPath: string): void {
 
 function isPositiveInteger(value: number): boolean {
   return Number.isInteger(value) && value > 0;
+}
+
+function isFinitePositiveNumber(value: unknown): value is number {
+  return Number.isFinite(value) && (value as number) > 0;
 }
 
 function isNonRelativeComponentPath(componentPath: string): boolean {

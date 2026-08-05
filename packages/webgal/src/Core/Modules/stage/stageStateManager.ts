@@ -48,7 +48,6 @@ export const initState: IStageState = {
   figNameLeft14: '',
   figNameRight14: '',
   freeFigure: [],
-  characters: [],
   figureAssociatedAnimation: [],
   isRead: false,
   showText: '',
@@ -159,7 +158,6 @@ export class StageStateManager {
       STAGE_KEYS.BGMAIN,
       ...FIGURE_KEYS,
       ...state.freeFigure.map((figure) => figure.key),
-      ...state.characters.map((character) => character.key),
     ];
     if (!activeTargets.includes(target)) return;
 
@@ -341,6 +339,15 @@ export class StageStateManager {
     }
   }
 
+  public clearFigureResourceState(target: string) {
+    const state = this.calculationStageState;
+    state.figureAssociatedAnimation = state.figureAssociatedAnimation.filter((item) => item.targetId !== target);
+    state.live2dMotion = state.live2dMotion.filter((item) => item.target !== target);
+    state.live2dExpression = state.live2dExpression.filter((item) => item.target !== target);
+    state.live2dBlink = state.live2dBlink.filter((item) => item.target !== target);
+    state.live2dFocus = state.live2dFocus.filter((item) => item.target !== target);
+  }
+
   public replaceUIlable(payload: [string, string]) {
     this.calculationStageState.replacedUIlable[payload[0]] = payload[1];
   }
@@ -412,8 +419,5 @@ export class StageStateManager {
 export const stageStateManager = new StageStateManager();
 
 function cloneStageState(stageState: IStageState): IStageState {
-  const clonedState = cloneDeep(stageState);
-  // 旧存档和旧 Backlog 没有角色管理字段，统一在整态替换入口兼容。
-  clonedState.characters = Array.isArray(clonedState.characters) ? clonedState.characters : [];
-  return clonedState;
+  return cloneDeep(stageState);
 }

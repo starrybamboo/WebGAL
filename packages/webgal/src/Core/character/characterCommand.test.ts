@@ -1,14 +1,15 @@
-import { expect, test } from 'vitest';
+import { afterEach, expect, test, vi } from 'vitest';
 import { commandType, ISentence } from '@/Core/controller/scene/sceneInterface';
-import { IStageCharacter } from '@/Core/Modules/stage/stageInterface';
-import { character, createCharacterCommand } from '@/Core/gameScripts/character';
+import { character } from '@/Core/gameScripts/character';
+import { changeFigure } from '@/Core/gameScripts/changeFigure';
 import { initState, stageStateManager } from '@/Core/Modules/stage/stageStateManager';
-import { WebGAL } from '@/Core/WebGAL';
+import { parseCharacterFigureSource } from './characterFigureSource';
+import { logger } from '@/Core/util/logger';
 
-function sentence(content: string, args: ISentence['args'] = []): ISentence {
+function sentence(content: string, args: ISentence['args'] = [], command = commandType.character): ISentence {
   return {
-    command: commandType.character,
-    commandRaw: 'character',
+    command,
+    commandRaw: commandType[command],
     content,
     args,
     sentenceAssets: [],
@@ -18,69 +19,107 @@ function sentence(content: string, args: ISentence['args'] = []): ISentence {
   };
 }
 
-test('same-name commands update one stable character while different names coexist', () => {
-  let characters: IStageCharacter[] = [];
-  const command = createCharacterCommand({
-    getCharacters: () => characters,
-    setCharacters: (nextCharacters) => {
-      characters = nextCharacters;
-    },
-    logAuthorError: (message) => {
-      throw new Error(message);
-    },
-  });
+afterEach(() => {
+  stageStateManager.resetCalculationStageState(initState);
+  vi.restoreAllMocks();
+});
 
-  command(sentence('yuki/body', [{ key: 'left', value: true }]));
-  command(sentence('yuki/face', [{ key: 'right', value: true }]));
-  command(sentence('mika/body', [{ key: 'left', value: true }]));
+test('complete character selections share Figure targets and move a same-name source atomically', () => {
+  stageStateManager.resetCalculationStageState(initState);
 
-  expect(characters).toEqual([
-    { name: 'yuki', key: 'character-yuki', items: ['face'], position: 'right' },
-    { name: 'mika', key: 'character-mika', items: ['body'], position: 'left' },
+  character(sentence('yuki/body', [{ key: 'left', value: true }]));
+  character(sentence('yuki/face', [{ key: 'right', value: true }]));
+  character(sentence('mika/body', [{ key: 'left', value: true }]));
+
+  const state = stageStateManager.getCalculationStageState();
+  expect(parseCharacterFigureSource(state.figNameLeft)).toEqual({ name: 'mika', items: ['body'] });
+  expect(parseCharacterFigureSource(state.figNameRight)).toEqual({ name: 'yuki', items: ['face'] });
+  expect(state.freeFigure).toEqual([]);
+  expect('characters' in state).toBe(false);
+});
+
+test('every non-clear character command requires a complete selection and leaves state unchanged on failure', () => {
+  stageStateManager.resetCalculationStageState(initState);
+  const logError = vi.spyOn(logger, 'error').mockImplementation(() => undefined);
+  character(sentence('yuki/body', [{ key: 'left', value: true }]));
+  const before = JSON.stringify(stageStateManager.getCalculationStageState());
+
+  character(sentence('yuki', [{ key: 'right', value: true }]));
+
+  expect(JSON.stringify(stageStateManager.getCalculationStageState())).toBe(before);
+  expect(logError).toHaveBeenCalledWith(expect.stringMatching(/组合列表不能为空/));
+});
+
+test('default, named, explicit ID and ID-plus-position use the same target rules as changeFigure', () => {
+  stageStateManager.resetCalculationStageState(initState);
+
+  character(sentence('center/body'));
+  character(sentence('left/body', [{ key: 'left', value: true }]));
+  character(sentence('free/body', [{ key: 'id', value: 'figure-4' }]));
+  character(
+    sentence('positioned/body', [
+      { key: 'id', value: 'figure-5' },
+      { key: 'right', value: true },
+    ]),
+  );
+
+  const state = stageStateManager.getCalculationStageState();
+  expect(parseCharacterFigureSource(state.figName)).toEqual({ name: 'center', items: ['body'] });
+  expect(parseCharacterFigureSource(state.figNameLeft)).toEqual({ name: 'left', items: ['body'] });
+  expect(state.freeFigure.map((figure) => ({
+    key: figure.key,
+    position: figure.basePosition,
+    source: parseCharacterFigureSource(figure.name),
+  }))).toEqual([
+    { key: 'figure-4', position: 'center', source: { name: 'free', items: ['body'] } },
+    { key: 'figure-5', position: 'right', source: { name: 'positioned', items: ['body'] } },
   ]);
 });
 
-test('omitting a selection preserves the current composition and only moves the existing character', () => {
-  let characters: IStageCharacter[] = [];
-  const command = createCharacterCommand({
-    getCharacters: () => characters,
-    setCharacters: (nextCharacters) => {
-      characters = nextCharacters;
-    },
-    logAuthorError: (message) => {
-      throw new Error(message);
-    },
+test('same-ID replacement and ordinary changeFigure overwrite the previous character source naturally', () => {
+  stageStateManager.resetCalculationStageState(initState);
+  const targetArgs = [{ key: 'id', value: 'figure-1' }];
+
+  character(sentence('yuki/body', targetArgs));
+  character(sentence('mika/body', targetArgs));
+  expect(parseCharacterFigureSource(stageStateManager.getCalculationStageState().freeFigure[0].name)).toEqual({
+    name: 'mika',
+    items: ['body'],
   });
 
-  command(sentence('yuki/body,face', [{ key: 'left', value: true }]));
-  command(sentence('yuki', [{ key: 'right', value: true }]));
+  changeFigure(sentence('ordinary.webp', targetArgs, commandType.changeFigure));
 
-  expect(characters).toEqual([{ name: 'yuki', key: 'character-yuki', items: ['body', 'face'], position: 'right' }]);
+  const figure = stageStateManager.getCalculationStageState().freeFigure[0];
+  expect(figure.name).toBe('ordinary.webp');
+  expect(parseCharacterFigureSource(figure.name)).toBeNull();
 });
 
-test('a first character command without a selection reports an author error and creates nothing', () => {
-  let characters: IStageCharacter[] = [];
-  const errors: string[] = [];
-  const command = createCharacterCommand({
-    getCharacters: () => characters,
-    setCharacters: (nextCharacters) => {
-      characters = nextCharacters;
-    },
-    logAuthorError: (message) => errors.push(message),
-  });
+test('targeted and all-character clears leave ordinary Figure targets untouched', () => {
+  stageStateManager.resetCalculationStageState(initState);
+  character(sentence('yuki/body', [{ key: 'left', value: true }]));
+  character(sentence('mika/body', [{ key: 'right', value: true }]));
+  changeFigure(
+    sentence('ordinary.webp', [{ key: 'id', value: 'ordinary' }], commandType.changeFigure),
+  );
 
-  command(sentence('yuki'));
+  character(sentence('yuki', [{ key: 'clear', value: true }]));
+  let state = stageStateManager.getCalculationStageState();
+  expect(state.figNameLeft).toBe('');
+  expect(parseCharacterFigureSource(state.figNameRight)).toEqual({ name: 'mika', items: ['body'] });
+  expect(state.freeFigure.find((figure) => figure.key === 'ordinary')?.name).toBe('ordinary.webp');
 
-  expect(characters).toEqual([]);
-  expect(errors).toEqual(['角色 yuki 首次出现时必须提供组合列表']);
+  character(sentence('none'));
+  state = stageStateManager.getCalculationStageState();
+  expect(state.figNameRight).toBe('');
+  expect(state.freeFigure.find((figure) => figure.key === 'ordinary')?.name).toBe('ordinary.webp');
 });
 
-test('character records applicable figure presentation parameters on its stable target', () => {
+test('character delegates static transform, animation, filter, layer and blend parameters to its Figure target', () => {
   stageStateManager.resetCalculationStageState(initState);
 
-  character(
+  const perform = character(
     sentence('yuki/body', [
-      { key: 'left', value: true },
+      { key: 'id', value: 'figure-4' },
       { key: 'transform', value: '{"alpha":0.8,"position":{"x":12}}' },
       { key: 'ease', value: 'easeInOut' },
       { key: 'duration', value: 800 },
@@ -94,87 +133,38 @@ test('character records applicable figure presentation parameters on its stable 
   );
 
   const state = stageStateManager.getCalculationStageState();
-  expect(state.effects.find((effect) => effect.target === 'character-yuki')?.transform).toMatchObject({
+  expect(state.effects.find((effect) => effect.target === 'figure-4')?.transform).toMatchObject({
     alpha: 0.8,
     position: { x: 12 },
   });
-  expect(state.animationSettings.find((setting) => setting.target === 'character-yuki')).toMatchObject({
+  expect(state.animationSettings.find((setting) => setting.target === 'figure-4')).toMatchObject({
     enterAnimationName: 'fadeIn',
     exitAnimationName: 'fadeOut',
     enterDuration: 900,
     exitDuration: 700,
-    enterEase: 'easeInOut',
-    enterTransform: { alpha: 0.8, position: { x: 12 } },
-    baseTransform: { alpha: 0 },
   });
-  expect(state.figureMetaData['character-yuki']).toEqual({ zIndex: 4, blendMode: 'multiply' });
+  expect(state.figureMetaData['figure-4']).toEqual({ zIndex: 4, blendMode: 'multiply' });
+  expect(perform).toMatchObject({ performName: 'none', duration: 0 });
+  expect(perform.startFunction).toBeUndefined();
 });
 
-test('a new character gets the ordinary figure fade when only duration and ease are provided', () => {
+test('character does not adopt Live2D or Spine-only parameters', () => {
   stageStateManager.resetCalculationStageState(initState);
 
   character(
     sentence('yuki/body', [
-      { key: 'duration', value: 640 },
-      { key: 'ease', value: 'easeOut' },
+      { key: 'id', value: 'figure-4' },
+      { key: 'motion', value: 'idle' },
+      { key: 'skin', value: 'summer' },
+      { key: 'expression', value: 'smile' },
+      { key: 'blink', value: '{"interval":1000}' },
+      { key: 'focus', value: '{"x":0,"y":0}' },
     ]),
   );
 
-  expect(stageStateManager.getCalculationStageState().animationSettings).toContainEqual(
-    expect.objectContaining({
-      target: 'character-yuki',
-      enterDuration: 640,
-      enterEase: 'easeOut',
-      baseTransform: expect.objectContaining({ alpha: 0 }),
-      enterTransform: expect.objectContaining({ alpha: 1 }),
-    }),
-  );
-});
-
-test('a named entrance writes its terminal effect before the composed image is ready', () => {
-  stageStateManager.resetCalculationStageState(initState);
-  const animationName = 'character-test-named-enter';
-  WebGAL.animationManager.addAnimation({
-    name: animationName,
-    effects: [
-      { alpha: 0, duration: 0, ease: '' },
-      { alpha: 0.7, position: { x: 48, y: 0 }, duration: 300, ease: 'easeOut' },
-    ],
-  });
-
-  character(sentence('yuki/body', [{ key: 'enter', value: animationName }]));
-
-  expect(stageStateManager.getCalculationStageState().effects).toContainEqual(
-    expect.objectContaining({
-      target: 'character-yuki',
-      transform: expect.objectContaining({ alpha: 0.7, position: { x: 48, y: 0 } }),
-    }),
-  );
-});
-
-test('a transform-only update animates from the previous state instead of replaying a stale named entrance', () => {
-  stageStateManager.resetCalculationStageState(initState);
-  character(
-    sentence('yuki/body', [
-      { key: 'transform', value: '{"alpha":0.8,"position":{"x":12}}' },
-      { key: 'enter', value: 'fadeIn' },
-    ]),
-  );
-
-  character(
-    sentence('yuki', [
-      { key: 'transform', value: '{"alpha":0.6,"position":{"x":24}}' },
-      { key: 'duration', value: 300 },
-    ]),
-  );
-
-  expect(stageStateManager.getCalculationStageState().animationSettings).toContainEqual(
-    expect.objectContaining({
-      target: 'character-yuki',
-      enterAnimationName: undefined,
-      enterDuration: 300,
-      baseTransform: expect.objectContaining({ alpha: 0.8, position: { x: 12 } }),
-      enterTransform: expect.objectContaining({ alpha: 0.6, position: { x: 24 } }),
-    }),
-  );
+  const state = stageStateManager.getCalculationStageState();
+  expect(state.live2dMotion).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
+  expect(state.live2dExpression).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
+  expect(state.live2dBlink).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
+  expect(state.live2dFocus).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
 });

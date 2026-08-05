@@ -46,9 +46,23 @@ export async function composeCharacterImage(
   const { context, toPngDataUrl } = dependencies.createCanvas(composition.canvas.width, composition.canvas.height);
   context.globalCompositeOperation = 'source-over';
   for (const { layer, image } of loadedLayers) {
-    context.drawImage(image.source, layer.x, layer.y, image.width * layer.scale, image.height * layer.scale);
+    const { width, height } = resolveDrawSize(layer, image);
+    context.drawImage(image.source, layer.x, layer.y, width, height);
   }
   return toPngDataUrl();
+}
+
+function resolveDrawSize(
+  layer: ICharacterComposition['layers'][number],
+  image: ILoadedCharacterImage,
+): { width: number; height: number } {
+  if (layer.width !== undefined && layer.height !== undefined) {
+    return { width: layer.width, height: layer.height };
+  }
+  if (layer.scale !== undefined) {
+    return { width: image.width * layer.scale, height: image.height * layer.scale };
+  }
+  return { width: image.width, height: image.height };
 }
 
 export function resolveCharacterComponentUrl(componentPath: string, templateUrl: string): string {

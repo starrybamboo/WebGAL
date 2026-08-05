@@ -1,14 +1,18 @@
 import cloneDeep from 'lodash/cloneDeep';
 import { expect, test } from 'vitest';
+import { parseCharacterFigureSource, serializeCharacterFigureSource } from '@/Core/character/characterFigureSource';
 import { initState, StageStateManager } from './stageStateManager';
 
-test('restoring a legacy stage snapshot normalizes missing character state', () => {
-  const legacyStageState = cloneDeep(initState) as Partial<typeof initState>;
-  delete legacyStageState.characters;
+test('restoring a stage snapshot keeps a serializable character source on its Figure target', () => {
+  const restoredState = cloneDeep(initState);
+  restoredState.figName = serializeCharacterFigureSource({ name: 'yuki', items: ['body', 'face'] });
   const manager = new StageStateManager();
 
-  manager.replaceAllStageState(legacyStageState as typeof initState);
+  manager.replaceAllStageState(restoredState);
 
-  expect(manager.getCalculationStageState().characters).toEqual([]);
-  expect(manager.getViewStageState().characters).toEqual([]);
+  expect(parseCharacterFigureSource(manager.getCalculationStageState().figName)).toEqual({
+    name: 'yuki',
+    items: ['body', 'face'],
+  });
+  expect('characters' in manager.getCalculationStageState()).toBe(false);
 });

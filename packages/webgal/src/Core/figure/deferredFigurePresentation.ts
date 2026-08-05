@@ -1,22 +1,22 @@
 import type { IStageAnimationSetting, ITransform } from '@/Core/Modules/stage/stageInterface';
 
-interface ICharacterPresentationAnimation {
+interface IFigurePresentationAnimation {
   animation: unknown;
   duration: number;
 }
 
-export interface ICharacterPresentationRuntime {
+export interface IDeferredFigurePresentationRuntime {
   isSkipAnimation: () => boolean;
-  buildNamedAnimation: (target: string, setting: IStageAnimationSetting) => ICharacterPresentationAnimation | null;
-  buildTransformAnimation: (target: string, setting: IStageAnimationSetting) => ICharacterPresentationAnimation | null;
+  buildNamedAnimation: (target: string, setting: IStageAnimationSetting) => IFigurePresentationAnimation | null;
+  buildTransformAnimation: (target: string, setting: IStageAnimationSetting) => IFigurePresentationAnimation | null;
   registerAnimation: (animation: unknown, animationKey: string, target: string) => void;
   removeAnimation: (animationKey: string) => void;
 }
 
-export class CharacterPresentationController {
+export class DeferredFigurePresentationController {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  public constructor(private readonly runtime: ICharacterPresentationRuntime) {}
+  public constructor(private readonly runtime: IDeferredFigurePresentationRuntime) {}
 
   public play(target: string, setting: IStageAnimationSetting | undefined): void {
     this.clear(target);
@@ -26,7 +26,7 @@ export class CharacterPresentationController {
       : this.runtime.buildTransformAnimation(target, setting);
     if (!prepared) return;
 
-    const animationKey = getCharacterPresentationKey(target);
+    const animationKey = getDeferredFigurePresentationKey(target);
     this.runtime.registerAnimation(prepared.animation, animationKey, target);
     if (prepared.duration <= 0) {
       this.runtime.removeAnimation(animationKey);
@@ -45,16 +45,16 @@ export class CharacterPresentationController {
       clearTimeout(timer);
       this.timers.delete(target);
     }
-    this.runtime.removeAnimation(getCharacterPresentationKey(target));
+    this.runtime.removeAnimation(getDeferredFigurePresentationKey(target));
   }
 }
 
-export interface ICharacterTransformFrame extends ITransform {
+export interface IFigureTransformFrame extends ITransform {
   duration: number;
   ease: string;
 }
 
-export function buildCharacterTransformTimeline(setting: IStageAnimationSetting): ICharacterTransformFrame[] {
+export function buildFigureTransformTimeline(setting: IStageAnimationSetting): IFigureTransformFrame[] {
   if (!setting.enterTransform) return [];
   const duration = setting.enterDuration ?? 500;
   const ease = setting.enterEase ?? '';
@@ -66,8 +66,8 @@ export function buildCharacterTransformTimeline(setting: IStageAnimationSetting)
   ];
 }
 
-function getCharacterPresentationKey(target: string): string {
-  return `${target}-character-enter`;
+function getDeferredFigurePresentationKey(target: string): string {
+  return `${target}-deferred-enter`;
 }
 
 function cloneTransform(transform: ITransform): ITransform {

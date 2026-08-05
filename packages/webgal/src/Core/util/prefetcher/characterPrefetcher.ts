@@ -22,7 +22,7 @@ export function prefetchCharactersByProgress(
     try {
       const selector = parseCharacterSelector(sentence.content);
       if (selector.items.length === 0) {
-        // 省略组合项依赖运行到该句时的角色状态，静态预热无法可靠推导。
+        // 定向清除语句没有组合项，不需要预热。
         continue;
       }
       const request: ICharacterFigureRequest = {

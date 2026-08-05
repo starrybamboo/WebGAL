@@ -149,13 +149,6 @@ export interface IFreeFigure {
   key: string;
 }
 
-export interface IStageCharacter {
-  name: string;
-  key: string;
-  items: string[];
-  position: IFigurePosition;
-}
-
 export interface IFigureAssociatedAnimation {
   mouthAnimation: IMouthAnimationFile;
   blinkAnimation: IEyesAnimationFile;
@@ -279,8 +272,6 @@ export interface IStageState {
   figNameRight14: string; // 立绘_右 1/4 文件地址（相对或绝对）
   // 自由立绘
   freeFigure: Array<IFreeFigure>;
-  // 静态组合角色。这里只保存可恢复的逻辑状态，不保存生成图片或异步任务。
-  characters: Array<IStageCharacter>;
   figureAssociatedAnimation: Array<IFigureAssociatedAnimation>;
   isRead: boolean; // 是否已读
   showText: string; // 文字

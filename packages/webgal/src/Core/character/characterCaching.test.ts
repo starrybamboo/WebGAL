@@ -1,13 +1,12 @@
 import { expect, test } from 'vitest';
-import { IStageCharacter } from '@/Core/Modules/stage/stageInterface';
 import { CharacterFigureService } from './characterFigureService';
-import { CharacterStageSync } from './characterStageSync';
+import { CharacterFigureSourceSync } from './characterFigureSourceSync';
+import type { ICharacterFigureTarget } from './characterFigureSource';
 
-const yukiBody: IStageCharacter = {
-  name: 'yuki',
-  key: 'character-yuki',
-  items: ['body'],
+const yukiBody: ICharacterFigureTarget = {
+  key: 'fig-left',
   position: 'left',
+  source: { name: 'yuki', items: ['body'] },
 };
 
 const template = {
@@ -39,8 +38,8 @@ test('concurrent and later identical requests reuse one successful composition',
     },
   });
 
-  const first = service.prepare(yukiBody);
-  const second = service.prepare(yukiBody);
+  const first = service.prepare(yukiBody.source);
+  const second = service.prepare(yukiBody.source);
   await new Promise((resolve) => setTimeout(resolve, 0));
   expect(templateLoads).toBe(1);
   expect(compositions).toBe(1);
@@ -50,7 +49,7 @@ test('concurrent and later identical requests reuse one successful composition',
     'data:image/png;base64,yuki-body',
     'data:image/png;base64,yuki-body',
   ]);
-  await expect(service.prepare(yukiBody)).resolves.toBe('data:image/png;base64,yuki-body');
+  await expect(service.prepare(yukiBody.source)).resolves.toBe('data:image/png;base64,yuki-body');
   expect(templateLoads).toBe(1);
   expect(compositions).toBe(1);
 });
@@ -69,8 +68,8 @@ test('a failed composition can be retried', async () => {
     },
   });
 
-  await expect(service.prepare(yukiBody)).rejects.toThrow('image missing');
-  await expect(service.prepare(yukiBody)).resolves.toBe('data:image/png;base64,retried');
+  await expect(service.prepare(yukiBody.source)).rejects.toThrow('image missing');
+  await expect(service.prepare(yukiBody.source)).resolves.toBe('data:image/png;base64,retried');
   expect(compositions).toBe(2);
 });
 
@@ -85,8 +84,8 @@ test('an invalid template is not cached and can be reloaded after correction', a
     compose: async () => 'data:image/png;base64,corrected-template',
   });
 
-  await expect(service.prepare(yukiBody)).rejects.toThrow('不支持的角色模板版本');
-  await expect(service.prepare(yukiBody)).resolves.toBe('data:image/png;base64,corrected-template');
+  await expect(service.prepare(yukiBody.source)).rejects.toThrow('不支持的角色模板版本');
+  await expect(service.prepare(yukiBody.source)).resolves.toBe('data:image/png;base64,corrected-template');
   expect(templateLoads).toBe(2);
 });
 
@@ -101,13 +100,13 @@ test('an older request finishing last cannot replace the latest character image'
       }),
   });
   const delivered: string[] = [];
-  const stageSync = new CharacterStageSync(service, {
+  const stageSync = new CharacterFigureSourceSync(service, {
     replaceFigure: ({ sourceUrl }) => delivered.push(sourceUrl),
     removeFigure: () => undefined,
   });
 
   stageSync.sync([yukiBody]);
-  stageSync.sync([{ ...yukiBody, items: ['face'] }]);
+  stageSync.sync([{ ...yukiBody, source: { ...yukiBody.source, items: ['face'] } }]);
   await new Promise((resolve) => setTimeout(resolve, 0));
   finishes.get('face')?.('data:image/png;base64,face');
   await new Promise((resolve) => setTimeout(resolve, 0));
@@ -134,8 +133,8 @@ test('a visible request starts before an unstarted prewarm task', async () => {
     },
   });
 
-  service.prewarm(yukiBody);
-  await expect(service.prepare({ ...yukiBody, items: ['face'] })).resolves.toBe('data:image/png;base64,face');
+  service.prewarm(yukiBody.source);
+  await expect(service.prepare({ ...yukiBody.source, items: ['face'] })).resolves.toBe('data:image/png;base64,face');
   expect(compositionOrder).toEqual(['face']);
 
   scheduledTasks[0]?.();
@@ -163,10 +162,10 @@ test('a visible request reuses the same task after its prewarm has started', asy
     },
   });
 
-  service.prewarm(yukiBody);
+  service.prewarm(yukiBody.source);
   scheduledTasks[0]?.();
   await new Promise((resolve) => setTimeout(resolve, 0));
-  const visibleRequest = service.prepare(yukiBody);
+  const visibleRequest = service.prepare(yukiBody.source);
 
   expect(compositions).toBe(1);
   finishComposition('data:image/png;base64,shared-prewarm');

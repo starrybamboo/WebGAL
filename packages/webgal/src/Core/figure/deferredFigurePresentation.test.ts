@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
-  buildCharacterTransformTimeline,
-  CharacterPresentationController,
-  ICharacterPresentationRuntime,
-} from './characterPresentation';
+  buildFigureTransformTimeline,
+  DeferredFigurePresentationController,
+  IDeferredFigurePresentationRuntime,
+} from './deferredFigurePresentation';
 
-let runtime: ICharacterPresentationRuntime;
-let controller: CharacterPresentationController;
+let runtime: IDeferredFigurePresentationRuntime;
+let controller: DeferredFigurePresentationController;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -17,7 +17,7 @@ beforeEach(() => {
     registerAnimation: vi.fn(),
     removeAnimation: vi.fn(),
   };
-  controller = new CharacterPresentationController(runtime);
+  controller = new DeferredFigurePresentationController(runtime);
 });
 
 afterEach(() => {
@@ -34,7 +34,7 @@ test('a transform presentation registers a finite animation and releases its Pix
 
   expect(runtime.registerAnimation).toHaveBeenCalledOnce();
   vi.advanceTimersByTime(250);
-  expect(runtime.removeAnimation).toHaveBeenLastCalledWith('character-yuki-character-enter');
+  expect(runtime.removeAnimation).toHaveBeenLastCalledWith('character-yuki-deferred-enter');
 });
 
 test('clearing a presentation removes its animation immediately and cancels delayed cleanup', () => {
@@ -52,7 +52,7 @@ test('clearing a presentation removes its animation immediately and cancels dela
 
 test('a transform timeline keeps distinct previous and terminal states', () => {
   expect(
-    buildCharacterTransformTimeline({
+    buildFigureTransformTimeline({
       target: 'character-yuki',
       enterDuration: 300,
       enterEase: 'easeInOut',
