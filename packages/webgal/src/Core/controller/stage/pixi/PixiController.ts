@@ -47,6 +47,8 @@ export interface IStageObject {
   sourceExt: string;
   sourceType: 'img' | 'live2d' | 'spine' | 'gif' | 'video' | 'stage';
   spineAnimation?: string;
+  /** 创建这个立绘时用的身份，见 syncPixiStageState 的 getFigureIdentity */
+  figureIdentity?: string;
   isExiting?: boolean;
 }
 

@@ -1,5 +1,10 @@
 import type { IEffect, IFigurePosition, IStageState, ITransform } from '@/Core/Modules/stage/stageInterface';
-import { FIGURE_KEYS, FIGURE_POSITIONS, figureStateKeyByPosition } from '@/Core/Modules/stage/stageInterface';
+import {
+  FIGURE_KEYS,
+  FIGURE_POSITIONS,
+  figureStateKeyByPosition,
+  normalizeFigureBounds,
+} from '@/Core/Modules/stage/stageInterface';
 import { stageStateManager, type IResolvedStageCommitOptions } from '@/Core/Modules/stage/stageStateManager';
 import { DEFAULT_BG_IN_DURATION, DEFAULT_BG_OUT_DURATION, DEFAULT_FIG_IN_DURATION } from '@/Core/constants';
 import { WebGAL } from '@/Core/WebGAL';
@@ -11,15 +16,17 @@ import { applyTransformToPixiContainer } from '@/Core/controller/stage/pixi/stag
 import { CharacterFigureSourceSync } from '@/Core/character/characterFigureSourceSync';
 import { characterFigureService } from '@/Core/character/characterFigureService';
 import {
-  clearDeferredFigurePresentation,
-  playDeferredFigurePresentation,
-} from '@/Core/figure/deferredFigurePresentationRuntime';
+  clearDeferredCharacterPresentation,
+  playDeferredCharacterPresentation,
+} from '@/Core/character/characterDeferredPresentationRuntime';
 import { collectCharacterFigureTargets, parseCharacterFigureSource } from '@/Core/character/characterFigureSource';
 
 interface ISyncFigureSlotPayload {
   key: string;
   sourceUrl: string;
   position: IFigurePosition;
+  /** Live2D 自定义绘制范围，与位置一样只在创建时落地 */
+  bounds?: [number, number, number, number];
   skipAnimation: boolean;
 }
 
@@ -27,7 +34,7 @@ const characterFigureSourceSync = new CharacterFigureSourceSync(characterFigureS
   replaceFigure: ({ key, sourceUrl, position }) => {
     const pixiStage = WebGAL.gameplay.pixiStage;
     if (!pixiStage) return;
-    clearDeferredFigurePresentation(key);
+    clearDeferredCharacterPresentation(key);
     const currentFigure = pixiStage.getStageObjByKey(key);
     if (currentFigure) {
       removeFig(currentFigure, `${key}-softin`, WebGAL.gameplay.skipAnimation);
@@ -35,7 +42,7 @@ const characterFigureSourceSync = new CharacterFigureSourceSync(characterFigureS
     pixiStage.addFigure(key, sourceUrl, position);
   },
   removeFigure: (key) => {
-    clearDeferredFigurePresentation(key);
+    clearDeferredCharacterPresentation(key);
     const currentFigure = WebGAL.gameplay.pixiStage?.getStageObjByKey(key);
     if (currentFigure) {
       removeFig(currentFigure, `${key}-softin`, WebGAL.gameplay.skipAnimation);
@@ -51,10 +58,21 @@ const characterFigureSourceSync = new CharacterFigureSourceSync(characterFigureS
     const setting = state.animationSettings.find((item) => item.target === key);
     const effect = state.effects.find((item) => item.target === key);
     applyStageEffectToTarget(key, effect?.transform);
-    playDeferredFigurePresentation(key, setting);
+    playDeferredCharacterPresentation(key, setting);
   },
   reportError: (message, error) => logger.error(message, error),
 });
+
+/**
+ * 立绘对象的身份：图片地址、基准位置、Live2D 绘制范围。
+ *
+ * 这三者都只在创建舞台对象时落地（基准位置写进 setBaseX，绘制范围写进模型的 pivot 与遮罩），
+ * 事后没有就地修改的通路。所以身份一变就必须关掉旧立绘再开新的，否则改动会被静默吞掉。
+ * 其余参数（zIndex、blendMode、动作、表情、皮肤、眨眼、注视）都有各自的更新通路，不属于身份。
+ */
+function getFigureIdentity({ sourceUrl, position, bounds }: ISyncFigureSlotPayload): string {
+  return JSON.stringify([sourceUrl, position, normalizeFigureBounds(bounds)]);
+}
 
 /**
  * 取入场过渡时长。
@@ -136,17 +154,27 @@ function syncBg(stageState: IStageState, skipAnimation: boolean) {
 }
 
 function syncFigures(stageState: IStageState, skipAnimation: boolean) {
+  const getBounds = (key: string) => stageState.live2dMotion.find((motion) => motion.target === key)?.overrideBounds;
+
   for (const position of FIGURE_POSITIONS) {
+    const key = `fig-${position}`;
     syncFigureSlot({
-      key: `fig-${position}`,
+      key,
       sourceUrl: stageState[figureStateKeyByPosition[position]],
       position,
+      bounds: getBounds(key),
       skipAnimation,
     });
   }
 
   for (const fig of stageState.freeFigure) {
-    syncFigureSlot({ key: fig.key, sourceUrl: fig.name, position: fig.basePosition, skipAnimation });
+    syncFigureSlot({
+      key: fig.key,
+      sourceUrl: fig.name,
+      position: fig.basePosition,
+      bounds: getBounds(fig.key),
+      skipAnimation,
+    });
   }
 
   const currentFigures = WebGAL.gameplay.pixiStage?.getFigureObjects();
@@ -162,7 +190,8 @@ function syncFigures(stageState: IStageState, skipAnimation: boolean) {
   }
 }
 
-function syncFigureSlot({ key, sourceUrl, position, skipAnimation }: ISyncFigureSlotPayload) {
+function syncFigureSlot(payload: ISyncFigureSlotPayload) {
+  const { key, sourceUrl, position, skipAnimation } = payload;
   const pixiStage = WebGAL.gameplay.pixiStage;
   if (!pixiStage) return;
   const softInAniKey = `${key}-softin`;
@@ -174,12 +203,18 @@ function syncFigureSlot({ key, sourceUrl, position, skipAnimation }: ISyncFigure
 
   // 旧存档中可能没有新增位置的字段，这里同时容错 undefined
   if (sourceUrl) {
-    if (currentFigure?.sourceUrl === sourceUrl) return;
+    const identity = getFigureIdentity(payload);
+    if (currentFigure?.figureIdentity === identity) return;
     if (currentFigure) {
       removeFig(currentFigure, softInAniKey, skipAnimation);
     }
     // 入场动画由 changeFigure 作为演出产出，这里只负责创建舞台对象
     addFigure(key, sourceUrl, position);
+    // 舞台对象是同步入表的，这里记下它是按哪份身份创建的，供下次同步比对
+    const newFigure = pixiStage.getStageObjByKey(key);
+    if (newFigure) {
+      newFigure.figureIdentity = identity;
+    }
     logger.debug(`${key} 立绘已重设`);
     return;
   }
@@ -250,6 +285,8 @@ function removeBg(bgObject: IStageObject, skipAnimation: boolean): number {
 function removeFig(figObj: IStageObject, enterTikerKey: string, skipAnimation: boolean) {
   const pixiStage = WebGAL.gameplay.pixiStage;
   if (!pixiStage) return;
+  // 只有真正决定让它退场时才打标记，标记与下面的改名同属一步，不会留给复用中的立绘
+  figObj.isExiting = true;
   pixiStage.removeAnimation(enterTikerKey);
   if (skipAnimation || WebGAL.gameplay.skipAnimation) {
     logger.debug('快速模式，立刻关闭立绘');

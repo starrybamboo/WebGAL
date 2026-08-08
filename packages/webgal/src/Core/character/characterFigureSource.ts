@@ -1,6 +1,6 @@
 import { CharacterTemplateError } from './characterTemplate';
 import type { IFigurePosition, IStageState } from '@/Core/Modules/stage/stageInterface';
-import { listFigureTargets } from '@/Core/figure/figureTarget';
+import { listFigureTargets } from './characterFigureTarget';
 
 const CHARACTER_FIGURE_SOURCE_PREFIX = 'webgal-character-source:';
 

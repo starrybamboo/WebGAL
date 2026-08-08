@@ -5,7 +5,7 @@ interface IFigurePresentationAnimation {
   duration: number;
 }
 
-export interface IDeferredFigurePresentationRuntime {
+export interface ICharacterDeferredPresentationRuntime {
   isSkipAnimation: () => boolean;
   buildNamedAnimation: (target: string, setting: IStageAnimationSetting) => IFigurePresentationAnimation | null;
   buildTransformAnimation: (target: string, setting: IStageAnimationSetting) => IFigurePresentationAnimation | null;
@@ -13,10 +13,10 @@ export interface IDeferredFigurePresentationRuntime {
   removeAnimation: (animationKey: string) => void;
 }
 
-export class DeferredFigurePresentationController {
+export class CharacterDeferredPresentationController {
   private readonly timers = new Map<string, ReturnType<typeof setTimeout>>();
 
-  public constructor(private readonly runtime: IDeferredFigurePresentationRuntime) {}
+  public constructor(private readonly runtime: ICharacterDeferredPresentationRuntime) {}
 
   public play(target: string, setting: IStageAnimationSetting | undefined): void {
     this.clear(target);
@@ -26,7 +26,7 @@ export class DeferredFigurePresentationController {
       : this.runtime.buildTransformAnimation(target, setting);
     if (!prepared) return;
 
-    const animationKey = getDeferredFigurePresentationKey(target);
+    const animationKey = getDeferredCharacterPresentationKey(target);
     this.runtime.registerAnimation(prepared.animation, animationKey, target);
     if (prepared.duration <= 0) {
       this.runtime.removeAnimation(animationKey);
@@ -45,7 +45,7 @@ export class DeferredFigurePresentationController {
       clearTimeout(timer);
       this.timers.delete(target);
     }
-    this.runtime.removeAnimation(getDeferredFigurePresentationKey(target));
+    this.runtime.removeAnimation(getDeferredCharacterPresentationKey(target));
   }
 }
 
@@ -54,7 +54,7 @@ export interface IFigureTransformFrame extends ITransform {
   ease: string;
 }
 
-export function buildFigureTransformTimeline(setting: IStageAnimationSetting): IFigureTransformFrame[] {
+export function buildCharacterTransformTimeline(setting: IStageAnimationSetting): IFigureTransformFrame[] {
   if (!setting.enterTransform) return [];
   const duration = setting.enterDuration ?? 500;
   const ease = setting.enterEase ?? '';
@@ -66,7 +66,7 @@ export function buildFigureTransformTimeline(setting: IStageAnimationSetting): I
   ];
 }
 
-function getDeferredFigurePresentationKey(target: string): string {
+function getDeferredCharacterPresentationKey(target: string): string {
   return `${target}-deferred-enter`;
 }
 

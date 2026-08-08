@@ -5,6 +5,7 @@ import { changeFigure } from '@/Core/gameScripts/changeFigure';
 import { initState, stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { parseCharacterFigureSource } from './characterFigureSource';
 import { logger } from '@/Core/util/logger';
+import { baseBlinkParam, baseFocusParam } from '@/Core/live2DCore';
 
 function sentence(content: string, args: ISentence['args'] = [], command = commandType.character): ISentence {
   return {
@@ -66,11 +67,13 @@ test('default, named, explicit ID and ID-plus-position use the same target rules
   const state = stageStateManager.getCalculationStageState();
   expect(parseCharacterFigureSource(state.figName)).toEqual({ name: 'center', items: ['body'] });
   expect(parseCharacterFigureSource(state.figNameLeft)).toEqual({ name: 'left', items: ['body'] });
-  expect(state.freeFigure.map((figure) => ({
-    key: figure.key,
-    position: figure.basePosition,
-    source: parseCharacterFigureSource(figure.name),
-  }))).toEqual([
+  expect(
+    state.freeFigure.map((figure) => ({
+      key: figure.key,
+      position: figure.basePosition,
+      source: parseCharacterFigureSource(figure.name),
+    })),
+  ).toEqual([
     { key: 'figure-4', position: 'center', source: { name: 'free', items: ['body'] } },
     { key: 'figure-5', position: 'right', source: { name: 'positioned', items: ['body'] } },
   ]);
@@ -98,9 +101,7 @@ test('targeted and all-character clears leave ordinary Figure targets untouched'
   stageStateManager.resetCalculationStageState(initState);
   character(sentence('yuki/body', [{ key: 'left', value: true }]));
   character(sentence('mika/body', [{ key: 'right', value: true }]));
-  changeFigure(
-    sentence('ordinary.webp', [{ key: 'id', value: 'ordinary' }], commandType.changeFigure),
-  );
+  changeFigure(sentence('ordinary.webp', [{ key: 'id', value: 'ordinary' }], commandType.changeFigure));
 
   character(sentence('yuki', [{ key: 'clear', value: true }]));
   let state = stageStateManager.getCalculationStageState();
@@ -148,7 +149,7 @@ test('character delegates static transform, animation, filter, layer and blend p
   expect(perform.startFunction).toBeUndefined();
 });
 
-test('character does not adopt Live2D or Spine-only parameters', () => {
+test('character strips Live2D and Spine-only parameters before delegating to upstream changeFigure', () => {
   stageStateManager.resetCalculationStageState(initState);
 
   character(
@@ -157,14 +158,20 @@ test('character does not adopt Live2D or Spine-only parameters', () => {
       { key: 'motion', value: 'idle' },
       { key: 'skin', value: 'summer' },
       { key: 'expression', value: 'smile' },
+      { key: 'bounds', value: '1,2,3,4' },
       { key: 'blink', value: '{"interval":1000}' },
-      { key: 'focus', value: '{"x":0,"y":0}' },
+      { key: 'focus', value: '{"x":0.7,"y":-0.4}' },
     ]),
   );
 
   const state = stageStateManager.getCalculationStageState();
-  expect(state.live2dMotion).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
-  expect(state.live2dExpression).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
-  expect(state.live2dBlink).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
-  expect(state.live2dFocus).not.toContainEqual(expect.objectContaining({ target: 'figure-4' }));
+  expect(state.live2dMotion.find((item) => item.target === 'figure-4')).toEqual({
+    target: 'figure-4',
+    motion: '',
+    skin: '',
+    overrideBounds: [0, 0, 0, 0],
+  });
+  expect(state.live2dExpression.find((item) => item.target === 'figure-4')?.expression).toBe('');
+  expect(state.live2dBlink.find((item) => item.target === 'figure-4')?.blink).toEqual(baseBlinkParam);
+  expect(state.live2dFocus.find((item) => item.target === 'figure-4')?.focus).toEqual(baseFocusParam);
 });

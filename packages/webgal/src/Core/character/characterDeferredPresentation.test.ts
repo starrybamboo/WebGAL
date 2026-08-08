@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
 import {
-  buildFigureTransformTimeline,
-  DeferredFigurePresentationController,
-  IDeferredFigurePresentationRuntime,
-} from './deferredFigurePresentation';
+  buildCharacterTransformTimeline,
+  CharacterDeferredPresentationController,
+  ICharacterDeferredPresentationRuntime,
+} from './characterDeferredPresentation';
 
-let runtime: IDeferredFigurePresentationRuntime;
-let controller: DeferredFigurePresentationController;
+let runtime: ICharacterDeferredPresentationRuntime;
+let controller: CharacterDeferredPresentationController;
 
 beforeEach(() => {
   vi.useFakeTimers();
@@ -17,7 +17,7 @@ beforeEach(() => {
     registerAnimation: vi.fn(),
     removeAnimation: vi.fn(),
   };
-  controller = new DeferredFigurePresentationController(runtime);
+  controller = new CharacterDeferredPresentationController(runtime);
 });
 
 afterEach(() => {
@@ -52,7 +52,7 @@ test('clearing a presentation removes its animation immediately and cancels dela
 
 test('a transform timeline keeps distinct previous and terminal states', () => {
   expect(
-    buildFigureTransformTimeline({
+    buildCharacterTransformTimeline({
       target: 'character-yuki',
       enterDuration: 300,
       enterEase: 'easeInOut',

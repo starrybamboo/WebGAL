@@ -299,7 +299,10 @@ export class StageStateManager {
     } else {
       this.calculationStageState.live2dMotion[index].motion = motion;
       this.calculationStageState.live2dMotion[index].skin = skin;
-      this.calculationStageState.live2dMotion[index].overrideBounds = overrideBounds;
+      // 绘制范围参与立绘身份判定，没指定就沿用旧值，否则只改动作也会被当成换了一张立绘
+      if (overrideBounds !== undefined) {
+        this.calculationStageState.live2dMotion[index].overrideBounds = overrideBounds;
+      }
     }
   }
 

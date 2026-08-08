@@ -149,6 +149,15 @@ export interface IFreeFigure {
   key: string;
 }
 
+/**
+ * Live2D 自定义绘制范围的归一：未指定与全 0 是同一件事。
+ *
+ * 绘制范围参与立绘身份判定，演算与提交两侧必须用同一个口径，否则会把没变的立绘判成换了一张。
+ */
+export function normalizeFigureBounds(bounds?: [number, number, number, number]): [number, number, number, number] {
+  return bounds ?? [0, 0, 0, 0];
+}
+
 export interface IFigureAssociatedAnimation {
   mouthAnimation: IMouthAnimationFile;
   blinkAnimation: IEyesAnimationFile;

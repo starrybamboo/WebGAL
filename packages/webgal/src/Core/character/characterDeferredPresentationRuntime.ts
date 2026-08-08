@@ -3,13 +3,16 @@ import { getAnimateDuration, getAnimationObject } from '@/Core/Modules/animation
 import { generateTimelineObj } from '@/Core/controller/stage/pixi/animations/timeline';
 import type { IAnimationObject } from '@/Core/controller/stage/pixi/PixiController';
 import { WebGAL } from '@/Core/WebGAL';
-import { buildFigureTransformTimeline, DeferredFigurePresentationController } from './deferredFigurePresentation';
+import {
+  buildCharacterTransformTimeline,
+  CharacterDeferredPresentationController,
+} from './characterDeferredPresentation';
 
-const controller = new DeferredFigurePresentationController({
+const controller = new CharacterDeferredPresentationController({
   isSkipAnimation: () => WebGAL.gameplay.skipAnimation,
   buildNamedAnimation: (target, setting) => buildNamedAnimation(target, setting),
   buildTransformAnimation: (target, setting) => {
-    const timeline = buildFigureTransformTimeline(setting);
+    const timeline = buildCharacterTransformTimeline(setting);
     if (timeline.length === 0 || !WebGAL.gameplay.pixiStage) return null;
     const duration = setting.enterDuration ?? 500;
     return {
@@ -23,11 +26,11 @@ const controller = new DeferredFigurePresentationController({
   removeAnimation: (animationKey) => WebGAL.gameplay.pixiStage?.removeAnimation(animationKey),
 });
 
-export function playDeferredFigurePresentation(target: string, setting: IStageAnimationSetting | undefined): void {
+export function playDeferredCharacterPresentation(target: string, setting: IStageAnimationSetting | undefined): void {
   controller.play(target, setting);
 }
 
-export function clearDeferredFigurePresentation(target: string): void {
+export function clearDeferredCharacterPresentation(target: string): void {
   controller.clear(target);
 }
 
