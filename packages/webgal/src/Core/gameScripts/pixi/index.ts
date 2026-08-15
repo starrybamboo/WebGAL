@@ -1,7 +1,8 @@
 import { ISentence } from '@/Core/controller/scene/sceneInterface';
 import { IPerform } from '@/Core/Modules/perform/performInterface';
 import { logger } from '@/Core/util/logger';
-import { IResult, call } from '../../util/pixiPerformManager/pixiPerformManager';
+import { IResult, call, hasPerform } from '../../util/pixiPerformManager/pixiPerformManager';
+import { ensureRuntimePerformLoaded } from '@/Core/util/pixiPerformManager/runtimePixiPerformLoader';
 
 import { WebGAL } from '@/Core/WebGAL';
 
@@ -13,17 +14,42 @@ export const pixi = (sentence: ISentence): IPerform => {
   const pixiPerformName = 'PixiPerform' + sentence.content;
   let fg: IResult['fg'];
   let bg: IResult['bg'];
+  let loading = false;
+  let stopped = false;
 
-  return {
+  const mountPerform = () => {
+    const res: IResult = call(sentence.content);
+    fg = res.fg;
+    bg = res.bg;
+  };
+
+  const perform: IPerform = {
     performName: pixiPerformName,
     duration: 0,
     isHoldOn: true,
     startFunction: () => {
-      const res: IResult = call(sentence.content);
-      fg = res.fg;
-      bg = res.bg;
+      if (hasPerform(sentence.content)) {
+        mountPerform();
+        return;
+      }
+
+      loading = true;
+      void ensureRuntimePerformLoaded(sentence.content)
+        .then(() => {
+          if (stopped) return;
+          mountPerform();
+          loading = false;
+        })
+        .catch((error) => {
+          loading = false;
+          if (stopped) return;
+          logger.error(`运行时 Pixi 特效 "${sentence.content}" 加载或启动失败`, error);
+          WebGAL.gameplay.performController.softUnmountPerformObject(perform);
+        });
     },
     stopFunction: () => {
+      stopped = true;
+      loading = false;
       logger.warn('现在正在卸载pixi演出');
       if (fg) {
         fg.container.destroy({ texture: true, baseTexture: true });
@@ -36,7 +62,9 @@ export const pixi = (sentence: ISentence): IPerform => {
         WebGAL.gameplay.pixiStage?.removeAnimation(bg.tickerKey);
       }
     },
-    blockingNext: () => false,
-    blockingAuto: () => false,
+    blockingNext: () => loading,
+    blockingAuto: () => loading,
   };
+
+  return perform;
 };

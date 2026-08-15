@@ -1,3 +1,5 @@
+import type { IWebGALPixiPerformRuntime } from '@/Core/util/pixiPerformManager/runtimePixiPerformLoader';
+
 export {};
 
 declare global {
@@ -13,5 +15,6 @@ declare global {
         unlockAchievement: (achievementId: string) => boolean | Promise<boolean>;
       };
     };
+    WebGALPixiPerform?: IWebGALPixiPerformRuntime;
   }
 }

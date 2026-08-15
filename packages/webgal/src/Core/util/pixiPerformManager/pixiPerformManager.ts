@@ -147,4 +147,8 @@ export function getPerforms(): string[] {
   return [...performs.keys()];
 }
 
+export function hasPerform(name: string): boolean {
+  return performs.has(getKey(name));
+}
+
 import('./initRegister');
