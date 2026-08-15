@@ -1,10 +1,12 @@
 import { CharacterFigureService } from './characterFigureService';
 import type { ICharacterFigureTarget } from './characterFigureSource';
+import type { IResolvedCharacterFacialRig } from './characterFacialRig';
 
 export interface ICharacterFigureDelivery {
   key: string;
   sourceUrl: string;
   position: ICharacterFigureTarget['position'];
+  facialRig?: IResolvedCharacterFacialRig;
 }
 
 export interface ICharacterFigureSourceAdapter {
@@ -61,8 +63,8 @@ export class CharacterFigureSourceSync {
       const request = { epoch: this.nextEpoch++, sourceKey };
       this.pendingRequests.set(target.key, request);
       void this.figureService
-        .prepare(target.source)
-        .then((sourceUrl) => this.applyPreparedFigure(target, request, sourceUrl))
+        .prepareFigure(target.source)
+        .then((preparedFigure) => this.applyPreparedFigure(target, request, preparedFigure))
         .catch((error) => {
           const isLatestRequest = this.pendingRequests.get(target.key)?.epoch === request.epoch;
           if (isLatestRequest) {
@@ -73,7 +75,11 @@ export class CharacterFigureSourceSync {
     }
   }
 
-  private applyPreparedFigure(target: ICharacterFigureTarget, request: IPendingCharacterRequest, sourceUrl: string) {
+  private applyPreparedFigure(
+    target: ICharacterFigureTarget,
+    request: IPendingCharacterRequest,
+    preparedFigure: Awaited<ReturnType<CharacterFigureService['prepareFigure']>>,
+  ) {
     const latest = this.latestTargets.get(target.key);
     if (
       !latest ||
@@ -82,7 +88,7 @@ export class CharacterFigureSourceSync {
     ) {
       return;
     }
-    this.adapter.replaceFigure({ key: target.key, sourceUrl, position: target.position });
+    this.adapter.replaceFigure({ key: target.key, position: target.position, ...preparedFigure });
     this.appliedSourceKeys.set(target.key, request.sourceKey);
     this.pendingRequests.delete(target.key);
     this.syncPresentation(target.key, true, true);

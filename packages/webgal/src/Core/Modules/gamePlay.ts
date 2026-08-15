@@ -2,6 +2,8 @@ import PixiStage from '@/Core/controller/stage/pixi/PixiController';
 import { PerformController } from '@/Core/Modules/perform/performController';
 import { setFastButton } from '../controller/gamePlay/fastSkip';
 import { setAutoButton } from '../controller/gamePlay/autoPlay';
+import { FigureFaceRuntime } from '@/Core/figure/figureFaceRuntime';
+import { logger } from '@/Core/util/logger';
 
 /**
  * 游戏运行时变量
@@ -11,6 +13,9 @@ export class Gameplay {
   public fastInterval: ReturnType<typeof setInterval> | null = null;
   public autoTimeout: ReturnType<typeof setTimeout> | null = null;
   public pixiStage: PixiStage | null = null;
+  public readonly figureFaceRuntime = new FigureFaceRuntime({
+    reportError: (message, error) => logger.warn(message, error),
+  });
   public performController = new PerformController();
   public isFastPreview = false;
 
@@ -48,5 +53,6 @@ export class Gameplay {
     const autoTimeout = this.autoTimeout;
     if (autoTimeout !== null) clearInterval(autoTimeout);
     this.autoTimeout = null;
+    this.figureFaceRuntime.stopAllSpeech();
   }
 }

@@ -133,10 +133,201 @@ describe('character template rules', () => {
     const direct = resolveCharacterTemplateSelection(template, ['face']);
     const preset = resolveCharacterTemplateSelection(template, ['appearance']);
 
-    expect(direct.layers).toEqual([
-      { name: 'face', src: 'face.webp', x: 24, y: 36, width: 320, height: 180 },
-    ]);
+    expect(direct.layers).toEqual([{ name: 'face', src: 'face.webp', x: 24, y: 36, width: 320, height: 180 }]);
     expect(preset.layers).toEqual(direct.layers);
+  });
+
+  test('uses the selected preset canvas for a figure variant group', () => {
+    const template: ICharacterTemplate = {
+      Version: 1,
+      canvas: { width: 1600, height: 3000 },
+      components: {
+        base: { src: 'base.webp', x: 0, y: 0, width: 832, height: 1216 },
+        face: { src: 'face.webp', x: 80, y: 120, width: 260, height: 180 },
+      },
+      presets: {
+        appearance_31: {
+          canvas: { width: 832, height: 1216 },
+          items: ['base', 'face'],
+        },
+      },
+    };
+
+    const composition = resolveCharacterTemplateSelection(template, ['appearance_31']);
+
+    expect(composition.canvas).toEqual({ width: 832, height: 1216 });
+    expect(composition.layers.map((layer) => layer.name)).toEqual(['base', 'face']);
+  });
+
+  test('keeps a preset facial rig in the selected composite coordinate system', () => {
+    const composition = resolveCharacterTemplateSelection(
+      {
+        Version: 1,
+        canvas: { width: 1600, height: 3000 },
+        components: {
+          base: { src: 'base.png', x: 0, y: 0, width: 1024, height: 1536 },
+        },
+        facialRig: {
+          mouth: { x: 10, y: 20, width: 30, height: 40, open: 'fallback-mouth.png' },
+        },
+        presets: {
+          live: {
+            canvas: { width: 1024, height: 1536 },
+            items: ['base'],
+            facialRig: {
+              eyes: {
+                x: 485,
+                y: 228,
+                width: 168,
+                height: 113,
+                half: 'eyes-half.png',
+                closed: 'eyes-closed.png',
+              },
+              mouth: {
+                x: 531,
+                y: 317,
+                width: 82,
+                height: 73,
+                halfOpen: 'mouth-half.png',
+                open: 'mouth-open.png',
+              },
+            },
+          },
+        },
+      },
+      ['live'],
+    );
+
+    expect(composition.facialRig).toEqual({
+      eyes: {
+        x: 485,
+        y: 228,
+        width: 168,
+        height: 113,
+        half: 'eyes-half.png',
+        closed: 'eyes-closed.png',
+      },
+      mouth: {
+        x: 531,
+        y: 317,
+        width: 82,
+        height: 73,
+        halfOpen: 'mouth-half.png',
+        open: 'mouth-open.png',
+      },
+    });
+  });
+
+  test('does not inherit a top-level facial rig into a preset-specific canvas', () => {
+    const composition = resolveCharacterTemplateSelection(
+      {
+        Version: 1,
+        canvas: { width: 1600, height: 3000 },
+        components: { base: { src: 'base.png', x: 0, y: 0, width: 1024, height: 1536 } },
+        facialRig: { mouth: { x: 10, y: 20, width: 30, height: 40, open: 'fallback-mouth.png' } },
+        presets: {
+          still: { canvas: { width: 1024, height: 1536 }, items: ['base'] },
+        },
+      },
+      ['still'],
+    );
+
+    expect(composition.facialRig).toBeUndefined();
+  });
+
+  test('uses the top-level facial rig for direct components and legacy array presets', () => {
+    const template: ICharacterTemplate = {
+      Version: 1,
+      canvas: { width: 1024, height: 1536 },
+      components: { base: { src: 'base.png', x: 0, y: 0 } },
+      facialRig: { mouth: { x: 531, y: 317, width: 82, height: 73, open: 'mouth-open.png' } },
+      presets: { legacy: ['base'] },
+    };
+
+    expect(resolveCharacterTemplateSelection(template, ['base']).facialRig).toEqual(template.facialRig);
+    expect(resolveCharacterTemplateSelection(template, ['legacy']).facialRig).toEqual(template.facialRig);
+  });
+
+  test('rejects selecting presets with different facial rigs together', () => {
+    const template: ICharacterTemplate = {
+      Version: 1,
+      canvas: { width: 1024, height: 1536 },
+      components: { base: { src: 'base.png', x: 0, y: 0 } },
+      presets: {
+        talking: {
+          items: ['base'],
+          facialRig: { mouth: { x: 531, y: 317, width: 82, height: 73, open: 'mouth-open.png' } },
+        },
+        blinking: {
+          items: ['base'],
+          facialRig: { eyes: { x: 485, y: 228, width: 168, height: 113, closed: 'eyes-closed.png' } },
+        },
+      },
+    };
+
+    expect(() => resolveCharacterTemplateSelection(template, ['talking', 'blinking'])).toThrowError(
+      /不能混用不同预设面部 rig/,
+    );
+  });
+
+  test.each([
+    [
+      'outside the canvas',
+      { mouth: { x: 1000, y: 1500, width: 82, height: 73, open: 'mouth-open.png' } },
+      /必须完全位于组合画布内/,
+    ],
+    ['empty rig', {}, /至少需要 eyes 或 mouth/],
+    [
+      'escaping resource',
+      { eyes: { x: 1, y: 2, width: 3, height: 4, closed: '../eyes-closed.png' } },
+      /越出角色目录/,
+    ],
+  ])('rejects an invalid facial rig: %s', (_label, facialRig, expectedMessage) => {
+    expect(() =>
+      resolveCharacterTemplateSelection(
+        {
+          Version: 1,
+          canvas: { width: 1024, height: 1536 },
+          components: { base: { src: 'base.png', x: 0, y: 0 } },
+          facialRig,
+          presets: {},
+        } as ICharacterTemplate,
+        ['base'],
+      ),
+    ).toThrowError(expectedMessage as RegExp);
+  });
+
+  test('rejects selecting presets with different canvases together', () => {
+    const template: ICharacterTemplate = {
+      Version: 1,
+      canvas: { width: 1600, height: 3000 },
+      components: {
+        body: { src: 'body.webp', x: 0, y: 0 },
+      },
+      presets: {
+        tall: { canvas: { width: 1600, height: 3000 }, items: ['body'] },
+        compact: { canvas: { width: 832, height: 1216 }, items: ['body'] },
+      },
+    };
+
+    expect(() => resolveCharacterTemplateSelection(template, ['tall', 'compact'])).toThrowError(/不能混用不同预设画布/);
+  });
+
+  test('validates the canvas declared by an object preset', () => {
+    const template: ICharacterTemplate = {
+      Version: 1,
+      canvas: { width: 1600, height: 3000 },
+      components: {
+        body: { src: 'body.webp', x: 0, y: 0 },
+      },
+      presets: {
+        invalid: { canvas: { width: 0, height: 1216 }, items: ['body'] },
+      },
+    };
+
+    expect(() => resolveCharacterTemplateSelection(template, ['invalid'])).toThrowError(
+      /预设 invalid 的画布宽高必须是正整数/,
+    );
   });
 
   test('rejects component resources that escape the character directory', () => {
@@ -309,11 +500,7 @@ describe('character template rules', () => {
     ['x', { src: 'body.webp', x: Number.POSITIVE_INFINITY, y: 0, scale: 1 }, /x、y 必须是有限数值/],
     ['y', { src: 'body.webp', x: 0, y: Number.NaN, scale: 1 }, /x、y 必须是有限数值/],
     ['scale', { src: 'body.webp', x: 0, y: 0, scale: 0 }, /scale 必须是有限正数/],
-    [
-      'scale',
-      { src: 'body.webp', x: 0, y: 0, scale: null as unknown as number },
-      /scale 必须是有限正数/,
-    ],
+    ['scale', { src: 'body.webp', x: 0, y: 0, scale: null as unknown as number }, /scale 必须是有限正数/],
   ])('rejects an invalid component %s value', (_field, component, expectedMessage) => {
     expect(() =>
       resolveCharacterTemplateSelection(
@@ -337,11 +524,7 @@ describe('character template rules', () => {
       /scale 不能与 width、height 同时提供/,
     ],
     ['zero width', { src: 'body.webp', x: 0, y: 0, width: 0, height: 180 }, /width、height 必须是有限正数/],
-    [
-      'negative height',
-      { src: 'body.webp', x: 0, y: 0, width: 320, height: -1 },
-      /width、height 必须是有限正数/,
-    ],
+    ['negative height', { src: 'body.webp', x: 0, y: 0, width: 320, height: -1 }, /width、height 必须是有限正数/],
     [
       'non-finite width',
       { src: 'body.webp', x: 0, y: 0, width: Number.POSITIVE_INFINITY, height: 180 },

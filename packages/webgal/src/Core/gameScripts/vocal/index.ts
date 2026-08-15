@@ -1,24 +1,18 @@
 import { ISentence } from '@/Core/controller/scene/sceneInterface';
 import { logger } from '@/Core/util/logger';
 import { getFigurePositionFromArgs, getNumberArgByKey, getStringArgByKey } from '@/Core/util/getSentenceArg';
-import { IStageState } from '@/Core/Modules/stage/stageInterface';
-import {
-  audioContextWrapper,
-  ensureAudioContextReady,
-  getAudioLevel,
-  performBlinkAnimation,
-  performMouthAnimation,
-  resetMaxAudioLevel,
-  updateThresholds,
-} from '@/Core/gameScripts/vocal/vocalAnimation';
 import { WebGAL } from '@/Core/WebGAL';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
+import type { ReleaseFigureFace } from '@/Core/figure/figureFaceRuntime';
+
+const VOCAL_ELEMENT_RETRY_MS = 16;
+const VOCAL_ELEMENT_MAX_ATTEMPTS = 60;
 
 /**
  * 播放一段语音
  * @param sentence 语句
  */
-export const playVocal = (sentence: ISentence) => {
+export const playVocal = (sentence: ISentence, enableFigureFace = false) => {
   logger.debug('play vocal');
   const performInitName = 'vocal-play';
 
@@ -26,18 +20,8 @@ export const playVocal = (sentence: ISentence) => {
   let volume = getNumberArgByKey(sentence, 'volume') ?? 100; // 获取语音的音量比
   volume = Math.max(0, Math.min(volume, 100)); // 限制音量在 0-100 之间
 
-  let currentStageState: IStageState;
-  currentStageState = stageStateManager.getCalculationStageState();
-
-  let pos = getFigurePositionFromArgs(sentence) || 'center';
-
-  let key = getStringArgByKey(sentence, 'figureId') ?? '';
-
-  const freeFigure = currentStageState.freeFigure;
-  const figureAssociatedAnimation = currentStageState.figureAssociatedAnimation;
-  let bufferLength = 0;
-  let currentMouthValue = 0;
-  const lerpSpeed = 1;
+  const pos = getFigurePositionFromArgs(sentence) || 'center';
+  const key = getStringArgByKey(sentence, 'figureId') || `fig-${pos}`;
 
   // 先停止之前的语音
   WebGAL.gameplay.performController.unmountPerform('vocal-play', true);
@@ -49,14 +33,56 @@ export const playVocal = (sentence: ISentence) => {
 
   let isOver = false;
   let startTimer: ReturnType<typeof setTimeout> | undefined;
-  let blinkEndTimer: ReturnType<typeof setTimeout> | undefined;
+  let releaseFace: ReleaseFigureFace | undefined;
+  let startToken = 0;
+  let startAttempts = 0;
 
-  const finishPerform = (error?: unknown) => {
+  const finishPerform = (token: number, error?: unknown) => {
+    if (token !== startToken || isOver) return;
     if (error) {
-      logger.warn('Vocal play was blocked by browser autoplay policy or audio activation state.', error);
+      logger.warn('Vocal playback could not start or finish normally.', error);
     }
     isOver = true;
     WebGAL.gameplay.performController.unmountPerform(performInitName);
+  };
+
+  const scheduleStart = (token: number, delayMs: number) => {
+    startTimer = setTimeout(() => tryStart(token), delayMs);
+  };
+
+  const tryStart = (token: number) => {
+    if (token !== startToken || isOver) return;
+    const vocalControl = document.getElementById('currentVocal') as HTMLMediaElement | null;
+    const declaredSource = vocalControl?.getAttribute?.('src');
+    if (!vocalControl || (typeof declaredSource === 'string' && declaredSource !== url)) {
+      startAttempts += 1;
+      if (startAttempts >= VOCAL_ELEMENT_MAX_ATTEMPTS) {
+        finishPerform(token, new Error(`等待语音元素就绪超时：${url}`));
+      } else {
+        scheduleStart(token, VOCAL_ELEMENT_RETRY_MS);
+      }
+      return;
+    }
+
+    startTimer = undefined;
+    vocalControl.currentTime = 0;
+    if (enableFigureFace) {
+      try {
+        releaseFace = WebGAL.gameplay.figureFaceRuntime.speak(key, {
+          kind: 'audio',
+          media: vocalControl,
+        });
+      } catch (error) {
+        logger.warn('Figure face runtime failed to observe this vocal; continuing audio playback.', error);
+      }
+    }
+
+    try {
+      vocalControl.play().catch((error) => finishPerform(token, error));
+      vocalControl.onended = () => finishPerform(token);
+    } catch (error) {
+      finishPerform(token, error);
+    }
   };
 
   /**
@@ -69,105 +95,23 @@ export const playVocal = (sentence: ISentence) => {
     isHoldOn: false,
     skipNextCollect: true,
     startFunction: () => {
-      startTimer = setTimeout(async () => {
-        const VocalControl = document.getElementById('currentVocal') as HTMLMediaElement | null;
-        if (VocalControl === null) {
-          isOver = true;
-          return;
-        }
-        VocalControl.currentTime = 0;
-        key = key ? key : `fig-${pos}`;
-        const animationItem = figureAssociatedAnimation.find((tid) => tid.targetId === key);
-        if (animationItem) {
-          resetMaxAudioLevel();
-          const foundFigure = freeFigure.find((figure) => figure.key === key);
-
-          if (foundFigure) {
-            pos = foundFigure.basePosition;
-          }
-
-          const isAudioContextReady = await ensureAudioContextReady();
-          if (isAudioContextReady && audioContextWrapper.audioContext) {
-            if (!audioContextWrapper.analyser) {
-              audioContextWrapper.analyser = audioContextWrapper.audioContext.createAnalyser();
-              audioContextWrapper.analyser.fftSize = 256;
-            }
-
-            bufferLength = audioContextWrapper.analyser.frequencyBinCount;
-            audioContextWrapper.dataArray = new Uint8Array(bufferLength);
-            const vocalControl = document.getElementById('currentVocal') as HTMLMediaElement;
-
-            if (!audioContextWrapper.source || audioContextWrapper.source.mediaElement !== vocalControl) {
-              if (audioContextWrapper.source) {
-                audioContextWrapper.source.disconnect();
-              }
-              audioContextWrapper.source = audioContextWrapper.audioContext.createMediaElementSource(vocalControl);
-              audioContextWrapper.source.connect(audioContextWrapper.analyser);
-            }
-
-            audioContextWrapper.analyser.connect(audioContextWrapper.audioContext.destination);
-
-            // Lip-sync Animation
-            audioContextWrapper.audioLevelInterval = setInterval(() => {
-              const audioLevel = getAudioLevel(
-                audioContextWrapper.analyser!,
-                audioContextWrapper.dataArray!,
-                bufferLength,
-              );
-              const { OPEN_THRESHOLD, HALF_OPEN_THRESHOLD } = updateThresholds(audioLevel);
-
-              performMouthAnimation({
-                audioLevel,
-                OPEN_THRESHOLD,
-                HALF_OPEN_THRESHOLD,
-                currentMouthValue,
-                lerpSpeed,
-                key,
-                animationItem,
-                pos,
-              });
-            }, 50);
-          } else {
-            logger.warn('AudioContext is not ready, skip lip-sync analyzer for this vocal.');
-          }
-
-          const animationEndTime = Date.now() + 10000;
-          performBlinkAnimation({ key, animationItem, pos, animationEndTime });
-
-          blinkEndTimer = setTimeout(() => {
-            clearTimeout(audioContextWrapper.blinkTimerID);
-          }, 10000);
-        }
-
-        VocalControl.play().catch(finishPerform);
-
-        VocalControl.onended = () => {
-          finishPerform();
-        };
-      }, 1);
+      const token = ++startToken;
+      startAttempts = 0;
+      isOver = false;
+      scheduleStart(token, 1);
     },
     stopFunction: () => {
+      startToken += 1;
+      isOver = true;
       if (startTimer) clearTimeout(startTimer);
-      if (blinkEndTimer) clearTimeout(blinkEndTimer);
-      clearInterval(audioContextWrapper.audioLevelInterval);
+      startTimer = undefined;
+      releaseFace?.();
+      releaseFace = undefined;
       const VocalControl = document.getElementById('currentVocal') as HTMLMediaElement | null;
       if (VocalControl) {
         VocalControl.pause();
         VocalControl.onended = null;
       }
-      key = key ? key : `fig-${pos}`;
-      const animationItem = figureAssociatedAnimation.find((tid) => tid.targetId === key);
-      performMouthAnimation({
-        audioLevel: 0,
-        OPEN_THRESHOLD: 1,
-        HALF_OPEN_THRESHOLD: 1,
-        currentMouthValue,
-        lerpSpeed,
-        key,
-        animationItem,
-        pos,
-      });
-      clearTimeout(audioContextWrapper.blinkTimerID);
     },
     blockingNext: () => false,
     blockingAuto: () => {

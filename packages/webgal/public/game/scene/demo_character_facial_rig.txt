@@ -1,0 +1,6 @@
+character:silver-schoolgirl/live -center -id=silver-schoolgirl-demo;
+银发少女:这是由 figure.json 的 facialRig 驱动的分层位图立绘。 -figureId=silver-schoolgirl-demo;
+银发少女:眼睛会独立自动眨眼，嘴型会跟随文字或语音切换。 -figureId=silver-schoolgirl-demo;
+银发少女:静止时仍然只保留一张组合底图，动态时只切换很小的面部贴片。 -figureId=silver-schoolgirl-demo;
+character:silver-schoolgirl -clear;
+changeScene:start.txt;

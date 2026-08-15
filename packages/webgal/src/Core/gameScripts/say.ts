@@ -8,9 +8,10 @@ import { getBooleanArgByKey, getFigurePositionFromArgs, getStringArgByKey } from
 import { textSize, voiceOption } from '@/store/userDataInterface';
 import { WebGAL } from '@/Core/WebGAL';
 import { compileSentence } from '@/Stage/TextBox/TextBox';
-import { performMouthAnimation } from '@/Core/gameScripts/vocal/vocalAnimation';
 import { match } from '@/Core/util/match';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
+import type { ReleaseFigureFace } from '@/Core/figure/figureFaceRuntime';
+import { collectCharacterFigureTargets } from '@/Core/character/characterFigureSource';
 
 /**
  * 进行普通对话的显示
@@ -86,47 +87,17 @@ export const say = (sentence: ISentence): IPerform => {
   }
   stageStateManager.setStage('showName', showName);
 
-  // 模拟说话
-  let performSimulateVocalTimeout: ReturnType<typeof setTimeout> | null = null;
-
-  const pos = getFigurePositionFromArgs(sentence);
-
-  let key = getStringArgByKey(sentence, 'figureId') ?? '';
-
-  let audioLevel = 80;
-  const performSimulateVocal = (end = false) => {
-    let nextAudioLevel = audioLevel + (Math.random() * 60 - 30); // 在 -30 到 +30 之间波动
-    // 确保波动幅度不小于 5
-    if (Math.abs(nextAudioLevel - audioLevel) < 5) {
-      nextAudioLevel = audioLevel + Math.sign(nextAudioLevel - audioLevel) * 5;
-    }
-    // 确保结果在 25 到 100 之间
-    audioLevel = Math.max(15, Math.min(nextAudioLevel, 100));
-    const currentStageState = stageStateManager.getCalculationStageState();
-    const figureAssociatedAnimation = currentStageState.figureAssociatedAnimation;
-    const animationItem = figureAssociatedAnimation.find((tid) => tid.targetId === key);
-    const targetKey = key ? key : `fig-${pos}`;
-    if (end) {
-      audioLevel = 0;
-    }
-    performMouthAnimation({
-      audioLevel,
-      OPEN_THRESHOLD: 50,
-      HALF_OPEN_THRESHOLD: 25,
-      currentMouthValue: 0,
-      lerpSpeed: 1,
-      key: targetKey,
-      animationItem,
-      pos,
-    });
-    if (!end) performSimulateVocalTimeout = setTimeout(performSimulateVocal, 50);
-  };
+  const pos = getFigurePositionFromArgs(sentence) || 'center';
+  const key = getStringArgByKey(sentence, 'figureId') ?? '';
+  const targetKey = key || `fig-${pos}`;
+  const isCharacterFaceTarget =
+    targetKey !== '' && collectCharacterFigureTargets(stageState).some((target) => target.key === targetKey);
+  let releaseFace: ReleaseFigureFace | undefined;
   // 播放一段语音
   if (vocal) {
-    WebGAL.gameplay.performController.arrangeNewPerform(playVocal(sentence), sentence, false);
+    WebGAL.gameplay.performController.arrangeNewPerform(playVocal(sentence, isCharacterFaceTarget), sentence, false);
   }
-  const shouldSimulateVocal = !vocal && (key !== '' || pos !== '');
-  const performSimulateVocalDelay = shouldSimulateVocal ? len * 250 : 0;
+  const shouldSimulateVocal = !vocal && isCharacterFaceTarget;
 
   const performInitName: string = getRandomPerformName();
   let endDelay = useTextAnimationDuration(userDataState.optionData.textSpeed) / 2;
@@ -137,19 +108,25 @@ export const say = (sentence: ISentence): IPerform => {
 
   return {
     performName: performInitName,
-    duration: sentenceDelay + endDelay + performSimulateVocalDelay,
+    duration: sentenceDelay + endDelay,
     isHoldOn: false,
     startFunction: () => {
       if (shouldSimulateVocal) {
-        performSimulateVocal();
+        try {
+          releaseFace = WebGAL.gameplay.figureFaceRuntime.speak(targetKey, {
+            kind: 'text',
+            text: sentence.content,
+            durationMs: sentenceDelay,
+          });
+        } catch {
+          // Face animation is best-effort and must not block the dialogue.
+        }
       }
     },
     stopFunction: () => {
       WebGAL.events.textSettle.emit();
-      if (performSimulateVocalTimeout) {
-        performSimulateVocal(true);
-        clearTimeout(performSimulateVocalTimeout);
-      }
+      releaseFace?.();
+      releaseFace = undefined;
     },
     blockingNext: () => false,
     blockingAuto: () => true,

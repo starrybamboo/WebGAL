@@ -44,8 +44,6 @@ export interface IStageAnimationSetting {
   exitDuration?: number;
   enterAnimationIgnoreDefault?: boolean;
   exitAnimationIgnoreDefault?: boolean;
-  enterKeepOffset?: boolean;
-  exitKeepOffset?: boolean;
   baseTransform?: ITransform;
   enterEase?: string;
   enterTransform?: ITransform;
@@ -158,24 +156,6 @@ export function normalizeFigureBounds(bounds?: [number, number, number, number])
   return bounds ?? [0, 0, 0, 0];
 }
 
-export interface IFigureAssociatedAnimation {
-  mouthAnimation: IMouthAnimationFile;
-  blinkAnimation: IEyesAnimationFile;
-  targetId: string;
-  animationFlag: string;
-}
-
-export interface IMouthAnimationFile {
-  open: string;
-  close: string;
-  halfOpen: string;
-}
-
-export interface IEyesAnimationFile {
-  open: string;
-  close: string;
-}
-
 /**
  * 启动演出接口
  * @interface IRunPerform
@@ -281,7 +261,6 @@ export interface IStageState {
   figNameRight14: string; // 立绘_右 1/4 文件地址（相对或绝对）
   // 自由立绘
   freeFigure: Array<IFreeFigure>;
-  figureAssociatedAnimation: Array<IFigureAssociatedAnimation>;
   isRead: boolean; // 是否已读
   showText: string; // 文字
   showTextSize: number; // 文字

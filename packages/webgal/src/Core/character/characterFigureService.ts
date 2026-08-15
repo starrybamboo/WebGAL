@@ -7,6 +7,8 @@ import {
 import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import { composeCharacterImage } from './characterImageComposer';
 import type { ICharacterFigureSource } from './characterFigureSource';
+import { resolveCharacterFacialRigResources } from './characterFacialRig';
+import type { IResolvedCharacterFacialRig } from './characterFacialRig';
 
 export interface ICharacterFigureServiceDependencies {
   getTemplateUrl: (characterName: string) => string;
@@ -20,6 +22,11 @@ export interface ICharacterFigureServiceDependencies {
 
 export type ICharacterFigureRequest = ICharacterFigureSource;
 
+export interface IPreparedCharacterFigure {
+  sourceUrl: string;
+  facialRig?: IResolvedCharacterFacialRig;
+}
+
 export class CharacterFigureService {
   // 模板与成功组合跟随当前游戏进程；失败任务会被移除，进行中任务只保留到 settle。
   private readonly templateTasks = new Map<string, Promise<ICharacterTemplate>>();
@@ -30,10 +37,14 @@ export class CharacterFigureService {
   public constructor(private readonly dependencies: ICharacterFigureServiceDependencies) {}
 
   public async prepare(character: ICharacterFigureRequest): Promise<string> {
+    return (await this.prepareFigure(character)).sourceUrl;
+  }
+
+  public async prepareFigure(character: ICharacterFigureRequest): Promise<IPreparedCharacterFigure> {
     const prewarmKey = getPrewarmKey(character);
     this.scheduledPrewarms.get(prewarmKey)?.();
     this.scheduledPrewarms.delete(prewarmKey);
-    return this.prepareInternal(character);
+    return this.prepareFigureInternal(character);
   }
 
   public prewarm(character: ICharacterFigureRequest): void {
@@ -44,14 +55,14 @@ export class CharacterFigureService {
     const schedule = this.dependencies.schedulePrewarm ?? scheduleDefaultPrewarm;
     const cancel = schedule(() => {
       this.scheduledPrewarms.delete(prewarmKey);
-      void this.prepareInternal(character).catch(() => {
+      void this.prepareFigureInternal(character).catch(() => {
         // 预热失败不影响可见请求，后续可见请求会按正常失败重试规则重新准备。
       });
     });
     this.scheduledPrewarms.set(prewarmKey, cancel);
   }
 
-  private async prepareInternal(character: ICharacterFigureRequest): Promise<string> {
+  private async prepareFigureInternal(character: ICharacterFigureRequest): Promise<IPreparedCharacterFigure> {
     const templateUrl = this.dependencies.getTemplateUrl(character.name);
     const template = await this.getTemplate(templateUrl);
     let composition: ICharacterComposition;
@@ -62,14 +73,18 @@ export class CharacterFigureService {
       this.templateTasks.delete(templateUrl);
       throw error;
     }
-    const compositionKey = JSON.stringify([templateUrl, composition.layers.map((layer) => layer.name)]);
+    const compositionKey = JSON.stringify([
+      templateUrl,
+      composition.canvas,
+      composition.layers.map((layer) => layer.name),
+    ]);
     const cachedResult = this.compositionResults.get(compositionKey);
     if (cachedResult) {
-      return cachedResult;
+      return createPreparedFigure(cachedResult, composition, templateUrl);
     }
     const runningTask = this.compositionTasks.get(compositionKey);
     if (runningTask) {
-      return runningTask;
+      return createPreparedFigure(await runningTask, composition, templateUrl);
     }
 
     const task = this.dependencies
@@ -90,7 +105,7 @@ export class CharacterFigureService {
         this.compositionTasks.delete(compositionKey);
       });
     this.compositionTasks.set(compositionKey, task);
-    return task;
+    return createPreparedFigure(await task, composition, templateUrl);
   }
 
   private getTemplate(templateUrl: string): Promise<ICharacterTemplate> {
@@ -112,6 +127,19 @@ export class CharacterFigureService {
     this.templateTasks.set(templateUrl, task);
     return task;
   }
+}
+
+function createPreparedFigure(
+  sourceUrl: string,
+  composition: ICharacterComposition,
+  templateUrl: string,
+): IPreparedCharacterFigure {
+  return {
+    sourceUrl,
+    ...(composition.facialRig
+      ? { facialRig: resolveCharacterFacialRigResources(composition.facialRig, templateUrl) }
+      : {}),
+  };
 }
 
 function getPrewarmKey(character: ICharacterFigureRequest): string {

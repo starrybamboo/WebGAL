@@ -22,17 +22,8 @@ export function getAnimationObject(
   duration: number,
   writeDefault: boolean,
   writeFullEffect = true,
-  keepOffset = false,
-  baseTransformOverride?: ITransform,
 ) {
-  const mappedEffects = getAnimationTimeline(
-    animationName,
-    target,
-    writeDefault,
-    writeFullEffect,
-    keepOffset,
-    baseTransformOverride,
-  );
+  const mappedEffects = getAnimationTimeline(animationName, target, writeDefault, writeFullEffect);
   if (mappedEffects) {
     return generateTimelineObj(mappedEffects, target, duration);
   }
@@ -44,17 +35,8 @@ export function applyAnimationEndState(
   target: string,
   writeDefault: boolean,
   writeFullEffect = true,
-  keepOffset = false,
-  baseTransformOverride?: ITransform,
 ) {
-  const mappedEffects = getAnimationTimeline(
-    animationName,
-    target,
-    writeDefault,
-    writeFullEffect,
-    keepOffset,
-    baseTransformOverride,
-  );
+  const mappedEffects = getAnimationTimeline(animationName, target, writeDefault, writeFullEffect);
   if (!mappedEffects || mappedEffects.length === 0) return null;
   const { duration, ease, ...endState } = mappedEffects[mappedEffects.length - 1];
   stageStateManager.updateEffect({ target, transform: endState });
@@ -66,8 +48,6 @@ export function getAnimationTimeline(
   target: string,
   writeDefault: boolean,
   writeFullEffect = true,
-  keepOffset = false,
-  baseTransformOverride?: ITransform,
 ): AnimationFrame[] | null {
   const effect = WebGAL.animationManager.getAnimations().find((ani) => ani.name === animationName);
   if (effect) {
@@ -81,33 +61,24 @@ export function getAnimationTimeline(
         if (effect.position) Object.keys(effect.position).forEach((k) => unionPositionKeys.add(k));
       });
     }
+    const useRelativeFrames = !writeDefault && effect.frameMode === 'relative';
+    const sourceTransform = writeDefault ? baseTransform : getAnimationSourceTransform(target, useRelativeFrames);
     const mappedEffects = effect.effects.map((effect) => {
-      const targetSetEffect = stageStateManager.getCalculationStageState().effects.find((e) => e.target === target);
-      const baseForRelative =
-        !writeDefault && keepOffset
-          ? baseTransformOverride ?? targetSetEffect?.transform ?? getCurrentTargetTransform(target) ?? baseTransform
-          : null;
-      const baseForEffect =
-        !writeDefault && keepOffset && baseForRelative ? baseForRelative : targetSetEffect?.transform;
       let newEffect;
 
-      if (!writeDefault && baseForEffect) {
-        if (writeFullEffect || keepOffset) {
-          newEffect = cloneDeep({ ...baseForEffect, duration: 0, ease: '' });
-        } else {
-          const targetScale = pickBy(baseForEffect.scale || {}, (source, key) => unionScaleKeys.has(key));
-          const targetPosition = pickBy(baseForEffect.position || {}, (source, key) => unionPositionKeys.has(key));
-          const originalTransform = { ...pickBy(baseForEffect, (source, key) => unionKeys.has(key)) };
-          originalTransform.scale = targetScale;
-          originalTransform.position = targetPosition;
-          newEffect = cloneDeep({ ...originalTransform, duration: 0, ease: '' });
-        }
+      if (writeDefault || writeFullEffect) {
+        newEffect = cloneDeep({ ...sourceTransform, duration: 0, ease: '' });
       } else {
-        newEffect = cloneDeep({ ...baseTransform, duration: 0, ease: '' });
+        const targetScale = pickBy(sourceTransform.scale || {}, (source, key) => unionScaleKeys.has(key));
+        const targetPosition = pickBy(sourceTransform.position || {}, (source, key) => unionPositionKeys.has(key));
+        const originalTransform = { ...pickBy(sourceTransform, (source, key) => unionKeys.has(key)) };
+        if (unionScaleKeys.size > 0) originalTransform.scale = targetScale;
+        if (unionPositionKeys.size > 0) originalTransform.position = targetPosition;
+        newEffect = cloneDeep({ ...originalTransform, duration: 0, ease: '' });
       }
 
-      const frame = baseForRelative ? applyRelativeFrame(effect, baseForRelative) : effect;
-      PixiStage.assignTransform(newEffect, frame, false);
+      const composedFrame = useRelativeFrames ? composeAnimationFrame(sourceTransform, effect) : effect;
+      PixiStage.assignTransform(newEffect, composedFrame, false);
       newEffect.duration = effect.duration;
       newEffect.ease = effect.ease;
       return newEffect;
@@ -118,23 +89,29 @@ export function getAnimationTimeline(
   return null;
 }
 
-function applyRelativeFrame(frame: any, base: ITransform) {
-  const next = cloneDeep(frame ?? {});
+// relative 动画帧描述目标当前变换之上的增量，而不是舞台原点的绝对值。
+function composeAnimationFrame(base: ITransform, frame: AnimationFrame): AnimationFrame {
+  const next = cloneDeep(frame);
   if (next.position) {
-    next.position = {
-      ...next.position,
-      x: (next.position.x ?? 0) + (base.position?.x ?? 0),
-      y: (next.position.y ?? 0) + (base.position?.y ?? 0),
-    };
+    if (next.position.x !== undefined) next.position.x += base.position?.x ?? 0;
+    if (next.position.y !== undefined) next.position.y += base.position?.y ?? 0;
   }
   if (next.scale) {
-    next.scale = {
-      ...next.scale,
-      x: (next.scale.x ?? 1) * (base.scale?.x ?? 1),
-      y: (next.scale.y ?? 1) * (base.scale?.y ?? 1),
-    };
+    if (next.scale.x !== undefined) next.scale.x *= base.scale?.x ?? 1;
+    if (next.scale.y !== undefined) next.scale.y *= base.scale?.y ?? 1;
   }
+  if (next.rotation !== undefined) next.rotation += base.rotation ?? 0;
+  if (next.alpha !== undefined) next.alpha *= base.alpha ?? 1;
   return next;
+}
+
+function getAnimationSourceTransform(target: string, useLiveTargetFallback: boolean): ITransform {
+  const targetSetEffect = stageStateManager
+    .getCalculationStageState()
+    .effects.find((effect) => effect.target === target);
+  // relative 退出动画会临时改名 target，此时演算状态已无原键，需从仍在舞台上的 Pixi 容器取基准。
+  const liveTargetTransform = useLiveTargetFallback ? getCurrentTargetTransform(target) : null;
+  return cloneDeep(targetSetEffect?.transform ?? liveTargetTransform ?? baseTransform);
 }
 
 function getCurrentTargetTransform(target: string): ITransform | null {
@@ -144,7 +121,13 @@ function getCurrentTargetTransform(target: string): ITransform | null {
     return null;
   }
   const transform = cloneDeep(baseTransform);
-  transform.alpha = container.alpha ?? transform.alpha;
+  const containerRecord = container as unknown as Record<string, unknown>;
+  const transformRecord = transform as unknown as Record<string, unknown>;
+  for (const key of Object.keys(baseTransform)) {
+    const value = containerRecord[key];
+    if (typeof value === 'number') transformRecord[key] = value;
+  }
+  transform.alpha = container.alphaFilterVal ?? container.alpha ?? transform.alpha;
   transform.position = transform.position ?? { x: 0, y: 0 };
   transform.scale = transform.scale ?? { x: 1, y: 1 };
   transform.position.x = container.x ?? transform.position.x ?? 0;
@@ -182,12 +165,8 @@ export function getExitAnimation(
   animation: IAnimationObject | null;
 } {
   const globalGameVar = webgalStore.getState().userData.globalGameVar;
-  let duration = isBg
-    ? DEFAULT_BG_OUT_DURATION
-    : getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'exit');
-  const configuredAnimationName = isBg
-    ? null
-    : getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'exit');
+  let duration = isBg ? DEFAULT_BG_OUT_DURATION : getConfiguredFigureDefaultTransitionDuration(globalGameVar, 'exit');
+  const configuredAnimationName = isBg ? null : getConfiguredFigureDefaultTransitionAnimation(globalGameVar, 'exit');
   const animationSettings = stageStateManager
     .getCalculationStageState()
     .animationSettings.find((setting) => setting.target === target);
@@ -197,16 +176,12 @@ export function getExitAnimation(
   const animationName = animationSettings?.exitAnimationName ?? configuredAnimationName;
   if (animationName) {
     logger.debug('取代默认退出动画', target);
-    const keepOffset = animationSettings?.exitKeepOffset ?? configuredAnimationName === animationName;
-    const baseTransformFromSetting = getExitBaseTransformFromSetting(target, animationSettings);
     const configuredAnimation = getAnimationObject(
       animationName,
       realTarget ?? target,
       getAnimateDuration(animationName),
       false,
       !(animationSettings?.exitAnimationIgnoreDefault ?? false),
-      keepOffset,
-      keepOffset ? baseTransformFromSetting : undefined,
     );
     if (configuredAnimation) {
       animation = configuredAnimation;
@@ -221,18 +196,4 @@ export function getExitAnimation(
     logger.debug('删除退出动画设定', target);
   }
   return { duration, animation };
-}
-
-function getExitBaseTransformFromSetting(
-  target: string,
-  animationSettings: { baseTransform?: ITransform } | undefined,
-) {
-  if (animationSettings?.baseTransform) return animationSettings.baseTransform;
-  if (target.endsWith('-off')) {
-    const originTarget = target.slice(0, -4);
-    return stageStateManager
-      .getCalculationStageState()
-      .animationSettings.find((item) => item.target === originTarget)?.baseTransform;
-  }
-  return undefined;
 }

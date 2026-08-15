@@ -31,7 +31,7 @@ interface ISyncFigureSlotPayload {
 }
 
 const characterFigureSourceSync = new CharacterFigureSourceSync(characterFigureService, {
-  replaceFigure: ({ key, sourceUrl, position }) => {
+  replaceFigure: ({ key, sourceUrl, position, facialRig }) => {
     const pixiStage = WebGAL.gameplay.pixiStage;
     if (!pixiStage) return;
     clearDeferredCharacterPresentation(key);
@@ -39,7 +39,7 @@ const characterFigureSourceSync = new CharacterFigureSourceSync(characterFigureS
     if (currentFigure) {
       removeFig(currentFigure, `${key}-softin`, WebGAL.gameplay.skipAnimation);
     }
-    pixiStage.addFigure(key, sourceUrl, position);
+    pixiStage.addFigure(key, sourceUrl, position, facialRig);
   },
   removeFigure: (key) => {
     clearDeferredCharacterPresentation(key);
@@ -287,6 +287,9 @@ function removeFig(figObj: IStageObject, enterTikerKey: string, skipAnimation: b
   if (!pixiStage) return;
   // 只有真正决定让它退场时才打标记，标记与下面的改名同属一步，不会留给复用中的立绘
   figObj.isExiting = true;
+  // 退场容器会继续显示，但它不能再占用原逻辑 key 的面部输入。
+  // 按 UUID 解绑后再改名；快速删除稍后的容器清理会幂等地再调用一次。
+  pixiStage.releaseFigureFaceByUuid(figObj.uuid);
   pixiStage.removeAnimation(enterTikerKey);
   if (skipAnimation || WebGAL.gameplay.skipAnimation) {
     logger.debug('快速模式，立刻关闭立绘');

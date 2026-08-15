@@ -4,7 +4,21 @@ import { WebGAL } from '@/Core/WebGAL';
 import omitBy from 'lodash/omitBy';
 import isUndefined from 'lodash/isUndefined';
 import PixiStage, { IAnimationObject } from '@/Core/controller/stage/pixi/PixiController';
+import type { WebGALPixiContainer } from '@/Core/controller/stage/pixi/WebGALPixiContainer';
 import { AnimationFrame } from '@/Core/Modules/animations';
+
+interface ITimelineUpdateValue extends Record<string, number | undefined> {
+  scaleX?: number;
+  scaleY?: number;
+}
+
+interface ITimelineAnimateOptions {
+  to: Array<Record<string, unknown>>;
+  offset: number[];
+  duration: number;
+  ease: Array<popmotion.Easing>;
+  onUpdate: (value: ITimelineUpdateValue) => void;
+}
 
 /**
  * 动画创建模板
@@ -16,8 +30,8 @@ export function generateTimelineObj(
   timeline: Array<AnimationFrame>,
   targetKey: string,
   duration: number,
+  runtime = createDefaultTimelineRuntime(),
 ): IAnimationObject {
-  const target = WebGAL.gameplay.pixiStage!.getStageObjByKey(targetKey);
   let currentDelay = 0;
   const values = [];
   const easeArray: Array<popmotion.Easing> = [];
@@ -39,16 +53,18 @@ export function generateTimelineObj(
       times.push(currentDelay / duration);
     } else times.push(0);
   }
-  const container = target?.pixiContainer;
-  let animateInstance: ReturnType<typeof popmotion.animate> | null = null;
+  // Timeline targets are logical keys: async figure delivery may replace the Pixi container while an animation is active.
+  const getCurrentContainer = () => runtime.getTargetContainer(targetKey);
+  let animateInstance: { stop: () => void } | null = null;
   // 只有有 duration 且 timeline 长度大于 1 的时候才有动画
   if (duration > 0 && timeline.length > 1) {
-    animateInstance = popmotion.animate({
+    animateInstance = runtime.animate({
       to: values,
       offset: times,
       duration,
       ease: easeArray,
       onUpdate: (updateValue) => {
+        const container = getCurrentContainer();
         if (container) {
           const { scaleX, scaleY, ...val } = updateValue;
           // @ts-ignore
@@ -65,19 +81,19 @@ export function generateTimelineObj(
    * 在此书写为动画设置初态的操作
    */
   function setStartState() {
-    if (target?.pixiContainer) {
-      // 不能赋值到 position，因为 x 和 y 被 WebGALPixiContainer 代理，而 position 属性没有代理
-      const { position, scale, ...state } = getStartStateEffect();
-      const assignValue = omitBy({ x: position?.x, y: position?.y, ...state }, isUndefined);
-      // @ts-ignore
-      PixiStage.assignTransform(target?.pixiContainer, assignValue);
-      if (scale && target?.pixiContainer) {
-        if (!isUndefined(scale?.x)) {
-          target.pixiContainer.scale.x = scale.x;
-        }
-        if (!isUndefined(scale?.y)) {
-          target.pixiContainer.scale.y = scale.y;
-        }
+    const container = getCurrentContainer();
+    if (!container) return;
+    // 不能赋值到 position，因为 x 和 y 被 WebGALPixiContainer 代理，而 position 属性没有代理
+    const { position, scale, ...state } = getStartStateEffect();
+    const assignValue = omitBy({ x: position?.x, y: position?.y, ...state }, isUndefined);
+    // @ts-ignore
+    PixiStage.assignTransform(container, assignValue);
+    if (scale) {
+      if (!isUndefined(scale.x)) {
+        container.scale.x = scale.x;
+      }
+      if (!isUndefined(scale.y)) {
+        container.scale.y = scale.y;
       }
     }
   }
@@ -86,25 +102,21 @@ export function generateTimelineObj(
    * 在此书写为动画设置终态的操作
    */
   function setEndState() {
-    if (!container) {
-      return;
-    }
     if (animateInstance) animateInstance.stop();
     animateInstance = null;
-    if (target?.pixiContainer) {
-      // 不能赋值到 position，因为 x 和 y 被 WebGALPixiContainer 代理，而 position 属性没有代理
-      // 不能赋值到 position，因为 x 和 y 被 WebGALPixiContainer 代理，而 position 属性没有代理
-      const { position, scale, ...state } = getEndStateEffect();
-      const assignValue = omitBy({ x: position?.x, y: position?.y, ...state }, isUndefined);
-      // @ts-ignore
-      PixiStage.assignTransform(target?.pixiContainer, assignValue);
-      if (scale && target?.pixiContainer) {
-        if (!isUndefined(scale?.x)) {
-          target.pixiContainer.scale.x = scale.x;
-        }
-        if (!isUndefined(scale?.y)) {
-          target.pixiContainer.scale.y = scale.y;
-        }
+    const container = getCurrentContainer();
+    if (!container) return;
+    // 不能赋值到 position，因为 x 和 y 被 WebGALPixiContainer 代理，而 position 属性没有代理
+    const { position, scale, ...state } = getEndStateEffect();
+    const assignValue = omitBy({ x: position?.x, y: position?.y, ...state }, isUndefined);
+    // @ts-ignore
+    PixiStage.assignTransform(container, assignValue);
+    if (scale) {
+      if (!isUndefined(scale.x)) {
+        container.scale.x = scale.x;
+      }
+      if (!isUndefined(scale.y)) {
+        container.scale.y = scale.y;
       }
     }
   }
@@ -134,6 +146,18 @@ export function generateTimelineObj(
     tickerFunc,
     getEndStateEffect,
     forceStopWithoutSetEndState,
+  };
+}
+
+export interface ITimelineRuntime {
+  getTargetContainer: (targetKey: string) => WebGALPixiContainer | null | undefined;
+  animate: (options: ITimelineAnimateOptions) => { stop: () => void };
+}
+
+function createDefaultTimelineRuntime(): ITimelineRuntime {
+  return {
+    getTargetContainer: (targetKey) => WebGAL.gameplay.pixiStage?.getStageObjByKey(targetKey)?.pixiContainer ?? null,
+    animate: (options) => popmotion.animate(options as Parameters<typeof popmotion.animate>[0]),
   };
 }
 

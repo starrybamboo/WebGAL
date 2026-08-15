@@ -48,7 +48,6 @@ export const initState: IStageState = {
   figNameLeft14: '',
   figNameRight14: '',
   freeFigure: [],
-  figureAssociatedAnimation: [],
   isRead: false,
   showText: '',
   showTextSize: -1,
@@ -276,12 +275,6 @@ export class StageStateManager {
     if (index >= 0) {
       if (newFigure.name === '') {
         currentFreeFigures.splice(index, 1);
-        const figureAssociatedAnimationIndex = state.figureAssociatedAnimation.findIndex(
-          (a) => a.targetId === newFigure.key,
-        );
-        if (figureAssociatedAnimationIndex >= 0) {
-          state.figureAssociatedAnimation.splice(figureAssociatedAnimationIndex, 1);
-        }
       } else {
         currentFreeFigures[index].basePosition = newFigure.basePosition;
         currentFreeFigures[index].name = newFigure.name;
@@ -344,7 +337,6 @@ export class StageStateManager {
 
   public clearFigureResourceState(target: string) {
     const state = this.calculationStageState;
-    state.figureAssociatedAnimation = state.figureAssociatedAnimation.filter((item) => item.targetId !== target);
     state.live2dMotion = state.live2dMotion.filter((item) => item.target !== target);
     state.live2dExpression = state.live2dExpression.filter((item) => item.target !== target);
     state.live2dBlink = state.live2dBlink.filter((item) => item.target !== target);

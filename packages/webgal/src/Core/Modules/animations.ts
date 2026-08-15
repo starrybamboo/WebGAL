@@ -3,6 +3,8 @@ import { ITransform } from '@/Core/Modules/stage/stageInterface';
 export interface IUserAnimation {
   name: string;
   effects: Array<AnimationFrame>;
+  /** 用户动画使用相对帧；无标记的引擎动态时间线保持绝对语义。 */
+  frameMode?: 'relative';
 }
 
 export type AnimationFrame = ITransform & { duration: number; ease: string };

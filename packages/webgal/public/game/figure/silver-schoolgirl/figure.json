@@ -1,0 +1,41 @@
+{
+  "Version": 1,
+  "canvas": {
+    "width": 1024,
+    "height": 1536
+  },
+  "components": {
+    "base": {
+      "src": "base.png",
+      "x": 0,
+      "y": 0
+    }
+  },
+  "presets": {
+    "live": {
+      "canvas": {
+        "width": 1024,
+        "height": 1536
+      },
+      "items": ["base"],
+      "facialRig": {
+        "eyes": {
+          "x": 485,
+          "y": 228,
+          "width": 168,
+          "height": 113,
+          "half": "eyes-half.png",
+          "closed": "eyes-closed.png"
+        },
+        "mouth": {
+          "x": 531,
+          "y": 317,
+          "width": 82,
+          "height": 73,
+          "halfOpen": "mouth-half.png",
+          "open": "mouth-open.png"
+        }
+      }
+    }
+  }
+}

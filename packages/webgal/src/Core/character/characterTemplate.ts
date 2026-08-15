@@ -17,11 +17,49 @@ export interface ICharacterComponent {
   height?: number;
 }
 
+export interface ICharacterFacialRigRegion {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+export interface ICharacterFacialRigEyes extends ICharacterFacialRigRegion {
+  /** 半闭眼替换片；省略时眨眼直接进入 closed。 */
+  half?: string;
+  /** 闭眼替换片；睁眼状态直接显示组合底图。 */
+  closed: string;
+}
+
+export interface ICharacterFacialRigMouth extends ICharacterFacialRigRegion {
+  /** 半开口替换片；省略时 half_open 复用 open。 */
+  halfOpen?: string;
+  /** 张嘴替换片；闭嘴状态直接显示组合底图。 */
+  open: string;
+}
+
+export interface ICharacterFacialRig {
+  eyes?: ICharacterFacialRigEyes;
+  mouth?: ICharacterFacialRigMouth;
+}
+
+export interface ICharacterPreset {
+  /** 预设自己的合成画布；立绘组可使用默认底图的裁剪后尺寸。 */
+  canvas?: ICharacterCanvas;
+  /** 与本预设输出坐标系绑定的位图面部替换区。 */
+  facialRig?: ICharacterFacialRig;
+  items: string[];
+}
+
+export type ICharacterPresetDefinition = string[] | ICharacterPreset;
+
 export interface ICharacterTemplate {
   Version: 1;
   canvas: ICharacterCanvas;
   components: Record<string, ICharacterComponent>;
-  presets?: Record<string, string[]>;
+  /** 直接选择部件或旧数组预设时使用的回退面部 rig。 */
+  facialRig?: ICharacterFacialRig;
+  presets?: Record<string, ICharacterPresetDefinition>;
 }
 
 export interface ICharacterCompositionLayer extends ICharacterComponent {
@@ -31,6 +69,7 @@ export interface ICharacterCompositionLayer extends ICharacterComponent {
 export interface ICharacterComposition {
   canvas: ICharacterCanvas;
   layers: ICharacterCompositionLayer[];
+  facialRig?: ICharacterFacialRig;
 }
 
 const MAX_CHARACTER_CANVAS_EDGE = 8192;
@@ -73,6 +112,9 @@ export function resolveCharacterTemplateSelection(
   }
 
   const layers: ICharacterCompositionLayer[] = [];
+  let selectedCanvas: ICharacterCanvas | undefined;
+  let selectedFacialRig: ICharacterFacialRig | undefined;
+  let usesPresetPresentation = false;
   const expandItem = (name: string): void => {
     if (hasOwn(template.components, name)) {
       const component = template.components[name];
@@ -81,16 +123,39 @@ export function resolveCharacterTemplateSelection(
     }
     if (hasOwn(template.presets, name)) {
       const preset = template.presets![name];
-      preset.forEach(expandItem);
+      const presetCanvas = getPresetCanvas(preset);
+      if (presetCanvas) {
+        if (selectedCanvas && !sameCanvas(selectedCanvas, presetCanvas)) {
+          throw new CharacterTemplateError('一次角色组合选择不能混用不同预设画布');
+        }
+        selectedCanvas = presetCanvas;
+      }
+      const presetFacialRig = getPresetFacialRig(preset);
+      if (presetFacialRig) {
+        if (selectedFacialRig && !sameFacialRig(selectedFacialRig, presetFacialRig)) {
+          throw new CharacterTemplateError('一次角色组合选择不能混用不同预设面部 rig');
+        }
+        selectedFacialRig = presetFacialRig;
+      }
+      if (presetCanvas || presetFacialRig) {
+        usesPresetPresentation = true;
+      }
+      getPresetItems(preset).forEach(expandItem);
       return;
     }
     throw new CharacterTemplateError(`未找到角色部件或预设：${name}`);
   };
   items.forEach((item) => expandItem(item));
 
+  const canvas = { ...(selectedCanvas ?? template.canvas) };
+  const facialRig = usesPresetPresentation ? selectedFacialRig : template.facialRig;
+  if (facialRig) {
+    validateFacialRig(facialRig, canvas, '所选角色组合的 facialRig');
+  }
   return {
-    canvas: { ...template.canvas },
+    canvas,
     layers,
+    ...(facialRig ? { facialRig: cloneFacialRig(facialRig) } : {}),
   };
 }
 
@@ -101,14 +166,9 @@ export function validateCharacterTemplate(template: ICharacterTemplate): void {
   if (template.Version !== 1) {
     throw new CharacterTemplateError(`不支持的角色模板版本：${String(template.Version)}`);
   }
-  if (!isPositiveInteger(template.canvas?.width) || !isPositiveInteger(template.canvas?.height)) {
-    throw new CharacterTemplateError('角色模板画布宽高必须是正整数');
-  }
-  if (template.canvas.width > MAX_CHARACTER_CANVAS_EDGE || template.canvas.height > MAX_CHARACTER_CANVAS_EDGE) {
-    throw new CharacterTemplateError(`角色模板画布单边不能超过 ${MAX_CHARACTER_CANVAS_EDGE}`);
-  }
-  if (template.canvas.width * template.canvas.height > MAX_CHARACTER_CANVAS_PIXELS) {
-    throw new CharacterTemplateError(`角色模板画布总像素不能超过 ${MAX_CHARACTER_CANVAS_PIXELS}`);
+  validateCanvas(template.canvas, '角色模板画布');
+  if (template.facialRig !== undefined) {
+    validateFacialRig(template.facialRig, template.canvas, '角色模板 facialRig');
   }
   if (!template.components || typeof template.components !== 'object' || Array.isArray(template.components)) {
     throw new CharacterTemplateError('角色模板 components 必须是对象');
@@ -125,10 +185,22 @@ export function validateCharacterTemplate(template: ICharacterTemplate): void {
   }
   Object.entries(template.components).forEach(([name, component]) => validateComponent(name, component));
   Object.entries(template.presets ?? {}).forEach(([presetName, preset]) => {
-    if (!Array.isArray(preset) || preset.length === 0) {
+    if (!Array.isArray(preset) && (!preset || typeof preset !== 'object' || !Array.isArray(preset.items))) {
+      throw new CharacterTemplateError(`角色组合预设 ${presetName} 必须是列表或带 items 的对象`);
+    }
+    const presetItems = getPresetItems(preset);
+    if (presetItems.length === 0) {
       throw new CharacterTemplateError(`角色组合预设 ${presetName} 的列表不能为空`);
     }
-    preset.forEach((item) => {
+    const presetCanvas = getPresetCanvas(preset);
+    if (presetCanvas) {
+      validateCanvas(presetCanvas, `角色组合预设 ${presetName} 的画布`);
+    }
+    const presetFacialRig = getPresetFacialRig(preset);
+    if (presetFacialRig !== undefined) {
+      validateFacialRig(presetFacialRig, presetCanvas ?? template.canvas, `角色组合预设 ${presetName} 的 facialRig`);
+    }
+    presetItems.forEach((item) => {
       if (typeof item !== 'string' || !item) {
         throw new CharacterTemplateError(`角色组合预设 ${presetName} 包含非法引用`);
       }
@@ -152,7 +224,7 @@ function validatePresetCycles(template: ICharacterTemplate): void {
       const cycle = [...stack.slice(cycleStart), name].join(' -> ');
       throw new CharacterTemplateError(`角色组合预设存在循环引用：${cycle}`);
     }
-    template.presets?.[name].forEach((item) => visit(item, [...stack, name]));
+    getPresetItems(template.presets![name]).forEach((item) => visit(item, [...stack, name]));
     visited.add(name);
   };
   Object.keys(template.presets ?? {}).forEach((name) => visit(name, []));
@@ -193,6 +265,120 @@ function normalizeCompositionLayer(name: string, component: ICharacterComponent)
     return { ...layer, width: component.width, height: component.height };
   }
   return layer;
+}
+
+function getPresetItems(preset: ICharacterPresetDefinition): string[] {
+  return Array.isArray(preset) ? preset : preset.items;
+}
+
+function getPresetCanvas(preset: ICharacterPresetDefinition): ICharacterCanvas | undefined {
+  return Array.isArray(preset) ? undefined : preset.canvas;
+}
+
+function getPresetFacialRig(preset: ICharacterPresetDefinition): ICharacterFacialRig | undefined {
+  return Array.isArray(preset) ? undefined : preset.facialRig;
+}
+
+function validateFacialRig(facialRig: ICharacterFacialRig, canvas: ICharacterCanvas, label: string): void {
+  if (!facialRig || typeof facialRig !== 'object' || Array.isArray(facialRig)) {
+    throw new CharacterTemplateError(`${label} 必须是对象`);
+  }
+  if (facialRig.eyes === undefined && facialRig.mouth === undefined) {
+    throw new CharacterTemplateError(`${label} 至少需要 eyes 或 mouth`);
+  }
+  if (facialRig.eyes !== undefined) {
+    validateFacialRigRegion(facialRig.eyes, canvas, `${label}.eyes`);
+    validateFacialRigResource(facialRig.eyes.closed, `${label}.eyes.closed`);
+    if (facialRig.eyes.half !== undefined) {
+      validateFacialRigResource(facialRig.eyes.half, `${label}.eyes.half`);
+    }
+  }
+  if (facialRig.mouth !== undefined) {
+    validateFacialRigRegion(facialRig.mouth, canvas, `${label}.mouth`);
+    validateFacialRigResource(facialRig.mouth.open, `${label}.mouth.open`);
+    if (facialRig.mouth.halfOpen !== undefined) {
+      validateFacialRigResource(facialRig.mouth.halfOpen, `${label}.mouth.halfOpen`);
+    }
+  }
+}
+
+function validateFacialRigRegion(region: ICharacterFacialRigRegion, canvas: ICharacterCanvas, label: string): void {
+  if (!region || typeof region !== 'object' || Array.isArray(region)) {
+    throw new CharacterTemplateError(`${label} 必须是对象`);
+  }
+  if (![region.x, region.y].every((value) => Number.isInteger(value) && value >= 0)) {
+    throw new CharacterTemplateError(`${label} 的 x、y 必须是非负整数`);
+  }
+  if (!isPositiveInteger(region.width) || !isPositiveInteger(region.height)) {
+    throw new CharacterTemplateError(`${label} 的 width、height 必须是正整数`);
+  }
+  if (region.x + region.width > canvas.width || region.y + region.height > canvas.height) {
+    throw new CharacterTemplateError(`${label} 必须完全位于组合画布内`);
+  }
+}
+
+function validateFacialRigResource(resourcePath: string, label: string): void {
+  if (typeof resourcePath !== 'string' || !resourcePath.trim()) {
+    throw new CharacterTemplateError(`${label} 缺少有效的静态图片路径`);
+  }
+  validateCharacterComponentPath(resourcePath);
+}
+
+function cloneFacialRig(facialRig: ICharacterFacialRig): ICharacterFacialRig {
+  return {
+    ...(facialRig.eyes ? { eyes: { ...facialRig.eyes } } : {}),
+    ...(facialRig.mouth ? { mouth: { ...facialRig.mouth } } : {}),
+  };
+}
+
+function sameFacialRig(left: ICharacterFacialRig, right: ICharacterFacialRig): boolean {
+  return (
+    sameFacialRigEyes(left.eyes, right.eyes) &&
+    sameFacialRigMouth(left.mouth, right.mouth)
+  );
+}
+
+function sameFacialRigEyes(left: ICharacterFacialRigEyes | undefined, right: ICharacterFacialRigEyes | undefined) {
+  if (!left || !right) return left === right;
+  return (
+    sameFacialRigRegion(left, right) &&
+    left.half === right.half &&
+    left.closed === right.closed
+  );
+}
+
+function sameFacialRigMouth(left: ICharacterFacialRigMouth | undefined, right: ICharacterFacialRigMouth | undefined) {
+  if (!left || !right) return left === right;
+  return (
+    sameFacialRigRegion(left, right) &&
+    left.halfOpen === right.halfOpen &&
+    left.open === right.open
+  );
+}
+
+function sameFacialRigRegion(left: ICharacterFacialRigRegion, right: ICharacterFacialRigRegion): boolean {
+  return (
+    left.x === right.x &&
+    left.y === right.y &&
+    left.width === right.width &&
+    left.height === right.height
+  );
+}
+
+function validateCanvas(canvas: ICharacterCanvas, label: string): void {
+  if (!isPositiveInteger(canvas?.width) || !isPositiveInteger(canvas?.height)) {
+    throw new CharacterTemplateError(`${label}宽高必须是正整数`);
+  }
+  if (canvas.width > MAX_CHARACTER_CANVAS_EDGE || canvas.height > MAX_CHARACTER_CANVAS_EDGE) {
+    throw new CharacterTemplateError(`${label}单边不能超过 ${MAX_CHARACTER_CANVAS_EDGE}`);
+  }
+  if (canvas.width * canvas.height > MAX_CHARACTER_CANVAS_PIXELS) {
+    throw new CharacterTemplateError(`${label}总像素不能超过 ${MAX_CHARACTER_CANVAS_PIXELS}`);
+  }
+}
+
+function sameCanvas(left: ICharacterCanvas, right: ICharacterCanvas): boolean {
+  return left.width === right.width && left.height === right.height;
 }
 
 export function validateCharacterComponentPath(componentPath: string): void {

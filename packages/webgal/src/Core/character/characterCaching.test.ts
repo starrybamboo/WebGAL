@@ -54,6 +54,32 @@ test('concurrent and later identical requests reuse one successful composition',
   expect(compositions).toBe(1);
 });
 
+test('presets with the same layers but different canvases do not share a composition result', async () => {
+  const compositions: Array<{ width: number; height: number }> = [];
+  const service = new CharacterFigureService({
+    getTemplateUrl: () => './game/figure/yuki/figure.json',
+    loadTemplate: async () => ({
+      ...template,
+      presets: {
+        tall: { canvas: { width: 1600, height: 3000 }, items: ['body'] },
+        compact: { canvas: { width: 832, height: 1216 }, items: ['body'] },
+      },
+    }),
+    compose: async (composition) => {
+      compositions.push(composition.canvas);
+      return `data:image/png;base64,${composition.canvas.width}x${composition.canvas.height}`;
+    },
+  });
+
+  await expect(service.prepare({ name: 'yuki', items: ['tall'] })).resolves.toBe('data:image/png;base64,1600x3000');
+  await expect(service.prepare({ name: 'yuki', items: ['compact'] })).resolves.toBe('data:image/png;base64,832x1216');
+
+  expect(compositions).toEqual([
+    { width: 1600, height: 3000 },
+    { width: 832, height: 1216 },
+  ]);
+});
+
 test('a failed composition can be retried', async () => {
   let compositions = 0;
   const service = new CharacterFigureService({

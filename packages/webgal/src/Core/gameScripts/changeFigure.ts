@@ -18,7 +18,6 @@ import {
 import { AnimationFrame, IUserAnimation } from '@/Core/Modules/animations';
 import { generateTransformAnimationObj } from '@/Core/controller/stage/pixi/animations/generateTransformAnimationObj';
 import { generateTimelineObj } from '@/Core/controller/stage/pixi/animations/timeline';
-import { assetSetter, fileType } from '@/Core/util/gameAssetsAccess/assetSetter';
 import { logger } from '@/Core/util/logger';
 import { applyAnimationEndState, getAnimateDuration } from '@/Core/Modules/animationFunctions';
 import { WebGAL } from '@/Core/WebGAL';
@@ -76,14 +75,6 @@ export function changeFigure(sentence: ISentence): IPerform {
     }
   }
 
-  // 图片立绘差分
-  const mouthOpen = optionalFigureAssetUrl(getStringArgByKey(sentence, 'mouthOpen'));
-  const mouthClose = optionalFigureAssetUrl(getStringArgByKey(sentence, 'mouthClose'));
-  const mouthHalfOpen = optionalFigureAssetUrl(getStringArgByKey(sentence, 'mouthHalfOpen'));
-  const eyesOpen = optionalFigureAssetUrl(getStringArgByKey(sentence, 'eyesOpen'));
-  const eyesClose = optionalFigureAssetUrl(getStringArgByKey(sentence, 'eyesClose'));
-  const animationFlag = getStringArgByKey(sentence, 'animationFlag') ?? '';
-
   // 其他参数
   const transformString = getStringArgByKey(sentence, 'transform');
   const ease = getStringArgByKey(sentence, 'ease') ?? '';
@@ -96,26 +87,6 @@ export function changeFigure(sentence: ISentence): IPerform {
   duration = enterDuration;
   const exitDuration = getNumberArgByKey(sentence, 'exitDuration') ?? DEFAULT_FIG_OUT_DURATION;
   const ignoreDefault = getBooleanArgByKey(sentence, 'ignoreDefault') ?? false;
-
-  const currentFigureAssociatedAnimation = stageStateManager.getCalculationStageState().figureAssociatedAnimation;
-  const filteredFigureAssociatedAnimation = currentFigureAssociatedAnimation.filter((item) => item.targetId !== id);
-  const newFigureAssociatedAnimationItem = {
-    targetId: id,
-    animationFlag: animationFlag,
-    mouthAnimation: {
-      open: mouthOpen,
-      close: mouthClose,
-      halfOpen: mouthHalfOpen,
-    },
-    blinkAnimation: {
-      open: eyesOpen,
-      close: eyesClose,
-    },
-  };
-  if ([mouthOpen, mouthClose, mouthHalfOpen, eyesOpen, eyesClose].some(Boolean)) {
-    filteredFigureAssociatedAnimation.push(newFigureAssociatedAnimationItem);
-  }
-  stageStateManager.setStage('figureAssociatedAnimation', filteredFigureAssociatedAnimation);
 
   /**
    * 立绘的身份：图片地址、基准位置、Live2D 绘制范围。
@@ -326,11 +297,6 @@ function getOverrideBoundsArr(raw: string): undefined | [number, number, number,
   isPass = isPass && parseOverrideBoundsResult.length === 4;
   if (isPass) return parseOverrideBoundsResult as [number, number, number, number];
   else return undefined;
-}
-
-function optionalFigureAssetUrl(fileName: string | null): string {
-  const normalizedFileName = fileName?.trim() ?? '';
-  return normalizedFileName ? assetSetter(normalizedFileName, fileType.figure) : '';
 }
 
 function buildTransformFromFrame(frame: Partial<AnimationFrame>): ITransform {

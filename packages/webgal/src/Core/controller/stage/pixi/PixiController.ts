@@ -1,11 +1,5 @@
-import {
-  getFigureBaseX,
-  IFigureAssociatedAnimation,
-  IFigureMetadata,
-  IFigurePosition,
-  ITransform,
-} from '@/Core/Modules/stage/stageInterface';
-import { Live2D } from '@/Core/WebGAL';
+import { getFigureBaseX, IFigureMetadata, IFigurePosition, ITransform } from '@/Core/Modules/stage/stageInterface';
+import { Live2D, WebGAL } from '@/Core/WebGAL';
 import { baseBlinkParam, baseFocusParam, BlinkParam, FocusParam } from '@/Core/live2DCore';
 import { isIOS } from '@/Core/initializeScript';
 import { WebGALPixiContainer } from '@/Core/controller/stage/pixi/WebGALPixiContainer';
@@ -20,6 +14,9 @@ import { GifResource } from './GifResource';
 import { stageStateManager } from '@/Core/Modules/stage/stageStateManager';
 import { queryStageObjectReferenceBox, type QueryTargetReferenceBoxResult } from './referenceBox';
 import { assignPixiTransform } from './stageEffectTransform';
+import type { IResolvedCharacterFacialRig } from '@/Core/character/characterFacialRig';
+import { BitmapFaceAdapter } from './BitmapFaceAdapter';
+import type { ReleaseFigureFace } from '@/Core/figure/figureFaceRuntime';
 
 export interface IAnimationObject {
   setStartState: Function;
@@ -111,6 +108,7 @@ export default class PixiStage {
   // 更新 ticker 状态的防抖标记
   private isTickerUpdatePending = false;
   private referenceBoxWaiters = new Map<string, Set<() => void>>();
+  private figureFaceReleases = new Map<string, ReleaseFigureFace>();
 
   /**
    * 暂时没用上，以后可能用
@@ -274,66 +272,6 @@ export default class PixiStage {
       this.removeAnimationByIndex(index);
       index = this.stageAnimations.findIndex((e) => e.targetKey === targetKey);
     }
-  }
-
-  // eslint-disable-next-line max-params
-  public performMouthSyncAnimation(
-    key: string,
-    targetAnimation: IFigureAssociatedAnimation,
-    mouthState: string,
-    presetPosition: string,
-  ) {
-    const currentFigure = this.getStageObjByKey(key)?.pixiContainer as WebGALPixiContainer;
-
-    if (!currentFigure) {
-      return;
-    }
-
-    const mouthTextureUrls: any = {
-      open: targetAnimation.mouthAnimation.open,
-      half_open: targetAnimation.mouthAnimation.halfOpen,
-      closed: targetAnimation.mouthAnimation.close,
-    };
-
-    // Load mouth texture (reuse if already loaded)
-    this.loadAsset(mouthTextureUrls[mouthState], () => {
-      const texture = this.assetLoader.resources[mouthTextureUrls[mouthState]].texture;
-      const sprite = currentFigure?.children?.[0] as PIXI.Sprite;
-      if (!texture || !sprite) {
-        return;
-      }
-      sprite.texture = texture;
-      this.requestRender();
-    });
-  }
-
-  // eslint-disable-next-line max-params
-  public performBlinkAnimation(
-    key: string,
-    targetAnimation: IFigureAssociatedAnimation,
-    blinkState: string,
-    presetPosition: string,
-  ) {
-    const currentFigure = this.getStageObjByKey(key)?.pixiContainer as WebGALPixiContainer;
-
-    if (!currentFigure) {
-      return;
-    }
-    const blinkTextureUrls: any = {
-      open: targetAnimation.blinkAnimation.open,
-      closed: targetAnimation.blinkAnimation.close,
-    };
-
-    // Load eye texture (reuse if already loaded)
-    this.loadAsset(blinkTextureUrls[blinkState], () => {
-      const texture = this.assetLoader.resources[blinkTextureUrls[blinkState]].texture;
-      const sprite = currentFigure?.children?.[0] as PIXI.Sprite;
-      if (!texture || !sprite) {
-        return;
-      }
-      sprite.texture = texture;
-      this.requestRender();
-    });
   }
 
   /**
@@ -505,7 +443,12 @@ export default class PixiStage {
    * @param url 立绘图片url
    * @param presetPosition
    */
-  public addFigure(key: string, url: string, presetPosition: IFigurePosition = 'center') {
+  public addFigure(
+    key: string,
+    url: string,
+    presetPosition: IFigurePosition = 'center',
+    facialRig?: IResolvedCharacterFacialRig,
+  ) {
     const loader = this.assetLoader;
     // 准备用于存放这个立绘的 Container
     const thisFigureContainer = new WebGALPixiContainer();
@@ -532,20 +475,22 @@ export default class PixiStage {
     this.figureContainer.addChild(thisFigureContainer);
     const figureUuid = uuid();
     const sourceExt = this.getExtName(url);
-    this.figureObjects.push({
+    const stageObject: IStageObject = {
       uuid: figureUuid,
       key: key,
       pixiContainer: thisFigureContainer,
       sourceUrl: url,
       sourceType: sourceExt === 'gif' ? 'gif' : 'img',
       sourceExt,
-    });
+    };
+    this.figureObjects.push(stageObject);
     // 完成图片加载后执行的函数
     const setup = () => {
       // TODO：找一个更好的解法，现在的解法是无论是否复用原来的资源，都设置一个延时以让动画工作正常！
       setTimeout(() => {
         const texture = loader.resources?.[url]?.texture;
-        if (texture && this.getStageObjByUuid(figureUuid)) {
+        const currentStageObject = this.getStageObjByUuid(figureUuid);
+        if (texture && currentStageObject) {
           /**
            * 重设大小
            */
@@ -555,6 +500,8 @@ export default class PixiStage {
           const scaleY = this.stageHeight / originalHeight;
           const targetScale = Math.min(scaleX, scaleY);
           const figureSprite = new PIXI.Sprite(texture);
+          thisFigureContainer.sortableChildren = true;
+          figureSprite.zIndex = 0;
           figureSprite.scale.x = targetScale;
           figureSprite.scale.y = targetScale;
           figureSprite.anchor.set(0.5);
@@ -568,6 +515,46 @@ export default class PixiStage {
           thisFigureContainer.setBaseX(getFigureBaseX(presetPosition, this.stageWidth, targetWidth));
           thisFigureContainer.pivot.set(0, this.stageHeight / 2);
           thisFigureContainer.addChild(figureSprite);
+          if (facialRig && !currentStageObject.isExiting) {
+            const adapter = new BitmapFaceAdapter(
+              facialRig,
+              {
+                sourceWidth: originalWidth,
+                sourceHeight: originalHeight,
+                scale: targetScale,
+                centerY: this.stageHeight / 2,
+              },
+              {
+                loadTexture: (resourceUrl) => this.loadTexture(resourceUrl),
+                attachLayer: (layer, texture, region, layout) => {
+                  const sprite = new PIXI.Sprite(texture);
+                  sprite.zIndex = layer === 'eyes' ? 1 : 2;
+                  sprite.position.set(
+                    (region.x - layout.sourceWidth / 2) * layout.scale,
+                    layout.centerY + (region.y - layout.sourceHeight / 2) * layout.scale,
+                  );
+                  sprite.width = region.width * layout.scale;
+                  sprite.height = region.height * layout.scale;
+                  sprite.visible = false;
+                  thisFigureContainer.addChild(sprite);
+                  return {
+                    setTexture: (nextTexture) => {
+                      sprite.texture = nextTexture;
+                    },
+                    setVisible: (visible) => {
+                      sprite.visible = visible;
+                    },
+                  };
+                },
+                requestRender: () => this.requestRender(),
+                reportError: (message, error) => logger.warn(`${message}：${key}`, error),
+              },
+            );
+            this.figureFaceReleases.set(
+              figureUuid,
+              WebGAL.gameplay.figureFaceRuntime.attach(key, adapter),
+            );
+          }
           this.notifyTargetReferenceBoxChanged(key);
           this.requestRender();
         }
@@ -913,33 +900,6 @@ export default class PixiStage {
     }
   }
 
-  public setModelMouthY(key: string, y: number) {
-    function mapToZeroOne(value: number) {
-      return value < 50 ? 0 : (value - 50) / 50;
-    }
-
-    const paramY = mapToZeroOne(y);
-    const target = this.figureObjects.find((e) => e.key === key);
-    if (target && target.sourceType === 'live2d') {
-      const container = target.pixiContainer;
-      if (!container) return;
-      const children = container.children;
-      for (const model of children) {
-        // @ts-ignore
-        if (model?.internalModel) {
-          // @ts-ignore
-          if (model?.internalModel?.coreModel?.setParamFloat)
-            // @ts-ignore
-            model?.internalModel?.coreModel?.setParamFloat?.('PARAM_MOUTH_OPEN_Y', paramY);
-          // @ts-ignore
-          if (model?.internalModel?.coreModel?.setParameterValueById)
-            // @ts-ignore
-            model?.internalModel?.coreModel?.setParameterValueById('ParamMouthOpenY', paramY);
-        }
-      }
-    }
-  }
-
   /**
    * 根据 key 获取舞台上的对象
    * @param key
@@ -987,6 +947,19 @@ export default class PixiStage {
   }
 
   /**
+   * 精确解除某一个位图 Figure 实例的面部绑定，不销毁其 Pixi 容器。
+   *
+   * 退场对象会在动画期间改名并继续显示，因此不能按逻辑 key 解除绑定。
+   * 先删除句柄再执行 release，保证快速删除、定时清理与重复调用均为幂等操作。
+   */
+  public releaseFigureFaceByUuid(figureUuid: string) {
+    const release = this.figureFaceReleases.get(figureUuid);
+    if (!release) return;
+    this.figureFaceReleases.delete(figureUuid);
+    release();
+  }
+
+  /**
    * 根据 key 删除舞台上的对象
    * @param key
    */
@@ -995,6 +968,7 @@ export default class PixiStage {
     const indexBg = this.backgroundObjects.findIndex((e) => e.key === key);
     if (indexFig >= 0) {
       const bgSprite = this.figureObjects[indexFig];
+      this.releaseFigureFaceByUuid(bgSprite.uuid);
       if (bgSprite.pixiContainer)
         for (const element of bgSprite.pixiContainer.children) {
           element.destroy();
@@ -1054,6 +1028,23 @@ export default class PixiStage {
      * 尝试启动加载
      */
     this.callLoader();
+  }
+
+  private loadTexture(url: string): Promise<PIXI.Texture> {
+    return new Promise((resolve, reject) => {
+      this.loadAsset(url, () => {
+        const resource = this.assetLoader.resources?.[url];
+        if (resource?.error) {
+          reject(resource.error);
+          return;
+        }
+        if (!resource?.texture) {
+          reject(new Error(`无法加载 Pixi 纹理：${url}`));
+          return;
+        }
+        resolve(resource.texture);
+      });
+    });
   }
 
   private updateL2dMotionByKey(target: string, motion: string) {
